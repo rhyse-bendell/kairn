@@ -89,6 +89,14 @@ def create_category(db_path, collaboration_id, name, description="", applies_to=
 def assign_category_to_artifact(db_path, artifact_id, category_id): conn=_conn(db_path); conn.execute('insert or ignore into artifact_categories values(?,?)',(artifact_id,category_id)); conn.commit()
 def assign_category_to_event(db_path, event_id, category_id): conn=_conn(db_path); conn.execute('insert or ignore into event_categories values(?,?)',(event_id,category_id)); conn.commit()
 
+
+def count_collaborations(db_path):
+    conn=_conn(db_path); return conn.execute('select count(*) c from collaborations').fetchone()['c']
+
+def count_collections(db_path, collaboration_id=None):
+    conn=_conn(db_path); q='select count(*) c from collections'; p=()
+    if collaboration_id: q+=' where collaboration_id=?'; p=(collaboration_id,)
+    return conn.execute(q,p).fetchone()['c']
 # queries
 def count_artifacts(db_path, collection_id=None):
     conn=_conn(db_path); q='select count(*) c from artifacts'; p=()
@@ -99,10 +107,11 @@ def count_events(db_path, collection_id=None):
     if collection_id: q+=' where collection_id=?'; p=(collection_id,)
     return conn.execute(q,p).fetchone()['c']
 def count_participants(db_path): conn=_conn(db_path); return conn.execute('select count(*) c from participants').fetchone()['c']
-def count_runs(db_path, collaboration_id=None):
-    conn=_conn(db_path); q='select count(*) c from runs'; p=()
-    if collaboration_id: q+=' where collaboration_id=?'; p=(collaboration_id,)
-    return conn.execute(q,p).fetchone()['c']
+def count_runs(db_path, collaboration_id=None, collection_id=None):
+    conn=_conn(db_path); q='select count(*) c from runs where 1=1'; p=[]
+    if collaboration_id: q+=' and collaboration_id=?'; p.append(collaboration_id)
+    if collection_id: q+=' and collection_id=?'; p.append(collection_id)
+    return conn.execute(q,tuple(p)).fetchone()['c']
 def count_warnings(db_path, run_id=None):
     conn=_conn(db_path); q='select count(*) c from ingestion_warnings'; p=()
     if run_id: q+=' where run_id=?'; p=(run_id,)
@@ -130,3 +139,17 @@ def list_runs(db_path, collection_id=None, collaboration_id=None):
     q+=' order by started_at desc'; return [dict(r) for r in conn.execute(q,tuple(p))]
 def get_latest_run(db_path, collection_id=None):
     runs=list_runs(db_path,collection_id=collection_id); return runs[0] if runs else None
+
+
+def list_event_actors(db_path):
+    conn=_conn(db_path)
+    return [r['actor'] for r in conn.execute("select distinct actor from events where actor is not null and actor!='' order by actor")]
+
+def list_event_actions(db_path):
+    conn=_conn(db_path)
+    return [r['action'] for r in conn.execute("select distinct action from events where action is not null and action!='' order by action")]
+
+def update_participant_display_name(db_path, actor_id, display_name):
+    conn=_conn(db_path)
+    conn.execute('update participants set display_name=? where actor_id=?',(display_name,actor_id))
+    conn.commit()
