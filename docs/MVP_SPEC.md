@@ -16,3 +16,15 @@ Current MVP includes a functional desktop workbench shell:
 - Analysis: activity indicator metrics generation and table preview.
 - Exports: compiled JSON/JSONL/timeline CSV and output folder access.
 - Diagnostics: DB count summary, warning inspection, maintenance actions.
+
+
+## MVP status (current)
+- collaboration creation/loading
+- modular ingestion
+- artifact registry
+- participant/agent registry
+- timeline/session reconstruction
+- exports/prompt chunks
+- diagnostics/maintenance
+- trace-based indicators
+- desktop GUI workbenches

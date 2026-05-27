@@ -18,6 +18,11 @@ class AppState:
     last_timeline_csv_path: str | None = None
     snapshots_dir: str = field(default="./kairn_workspace/snapshots")
     outputs_dir: str = field(default="./kairn_workspace/outputs")
+    active_run_dir: str | None = None
+    active_run_json_dir: str | None = None
+    active_run_csv_dir: str | None = None
+    active_run_viz_dir: str | None = None
+    active_run_prompt_dir: str | None = None
 
     def __post_init__(self) -> None:
         workspace = Path(self.workspace_dir)

@@ -44,7 +44,7 @@ def start_run(db_path, collection_id, root_path, collaboration_id=None):
 # existing funcs
 
 def upsert_artifact(db_path, collection_id, c, content_hash=None):
-    conn=_conn(db_path); row=conn.execute('select id from artifacts where rel_path=?',(c.rel_path,)).fetchone()
+    conn=_conn(db_path); row=conn.execute('select id from artifacts where collection_id=? and rel_path=?',(collection_id,c.rel_path)).fetchone()
     if row:
         aid=row['id']; conn.execute('update artifacts set size_bytes=?, modified_at=?, kind=?, content_hash=?, collection_id=? where id=?',(c.size_bytes,c.modified_at,c.guessed_kind,content_hash,collection_id,aid)); conn.commit(); return aid
     aid=uid(); conn.execute('insert into artifacts values(?,?,?,?,?,?,?,?,?,?)',(aid,collection_id,c.rel_path,c.path,c.name,c.extension,c.guessed_kind,c.size_bytes,c.modified_at,content_hash)); conn.commit(); return aid

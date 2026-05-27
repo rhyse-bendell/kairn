@@ -25,3 +25,14 @@ Basic local testing workflow:
 3. Run ingestion.
 4. Inspect Sources / Artifacts / Timeline.
 5. Run Metrics / Exports / Visualization.
+
+
+## Local GUI Workflow
+1. `pip install -e ".[gui]"`
+2. `kairn-gui`
+3. Create or load a collaboration in Dashboard.
+4. Select source folder and run ingestion from Sources.
+5. Inspect Sources/Artifacts/Agents/Timeline tabs.
+6. Run Metrics + Activity Indicators in Analysis.
+7. Export compiled JSON, JSONL, compact and prompt chunks from Exports.
+8. Run Diagnostics and maintenance actions.
