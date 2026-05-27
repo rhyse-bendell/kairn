@@ -14,9 +14,11 @@ docx=["python-docx"]
 pdf=["pymupdf"]
 image=["Pillow"]
 pptx=["python-pptx"]
+gui=["PySide6>=6.6"]
 
 [project.scripts]
 kairn="kairn.cli.main:main"
+kairn-gui="kairn.apps.desktop.main:main"
 
 [tool.pytest.ini_options]
 pythonpath=["src"]
