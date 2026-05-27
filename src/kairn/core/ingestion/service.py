@@ -18,8 +18,8 @@ def default_registry():
     for a in [FilesystemAdapter(),TextAdapter(),ChangelogAdapter(),DocxAdapter(),PdfAdapter(),ImageAdapter(),DiagramJsonAdapter(),PptxAdapter(),UnknownFileAdapter()]: r.register(a)
     return r
 
-def ingest_root(root_path:str, db_path:str='kairn.db', snapshot_dir:str='.kairn_snapshots', actor_hint:str|None=None):
-    cid=repo.ensure_collection(db_path, root_path); rid=repo.start_run(db_path,cid,root_path)
+def ingest_root(root_path:str, db_path:str='kairn.db', snapshot_dir:str='.kairn_snapshots', actor_hint:str|None=None, collaboration_id:str|None=None):
+    cid=repo.ensure_collection(db_path, root_path, collaboration_id=collaboration_id); rid=repo.start_run(db_path,cid,root_path, collaboration_id=collaboration_id)
     ctx=IngestionContext(collection_id=cid, root_path=root_path, root_label=Path(root_path).name, run_id=rid, actor_hint=actor_hint, db_path=db_path, snapshot_dir=snapshot_dir, event_sink=None)
     reg=default_registry()
     for c in scan(root_path):
