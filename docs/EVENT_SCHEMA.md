@@ -9,3 +9,6 @@ Inferred indicators are observational activity proxies, not direct measures of c
 - Event model follows actor-time-artifact-action with optional unit/summary/raw row fields.
 - Compiled exports provide global events and unit summaries.
 - Indicators are trace-based cautionary signals, not direct cognition measurement.
+
+## Enriched event export fields
+Event exports include actor labels, artifact metadata, unit, delta hints, and warning counts for re-entry oriented analysis.

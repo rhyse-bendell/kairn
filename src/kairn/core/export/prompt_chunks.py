@@ -1,23 +1,40 @@
-import gzip, json
-from pathlib import Path
-from ..storage.repositories import _conn
+from __future__ import annotations
 
-def export_prompt_chunks(db_path,out_dir,chunk_size=200,collection_id=None):
-    out=Path(out_dir); out.mkdir(parents=True,exist_ok=True)
-    conn=_conn(db_path)
-    q='''select e.id event_id,e.ts,e.action,e.actor actor_id,coalesce(p.display_name,p.pid_label,e.actor,'unknown') actor_label,
-         coalesce(e.mentioned_unit,a.rel_path) unit,e.artifact_id,a.kind artifact_kind,e.summary
-         from events e left join artifacts a on a.id=e.artifact_id left join participants p on p.actor_id=e.actor where 1=1''';p=[]
-    if collection_id:q+=' and e.collection_id=?';p.append(collection_id)
-    q+=' order by e.ts'
-    rows=[dict(r) for r in conn.execute(q,tuple(p))]
-    paths=[]
-    for i in range(0,len(rows),chunk_size):
-        chunk=rows[i:i+chunk_size]
-        jpath=out/f'prompt_chunk_{i//chunk_size+1:03d}.json'
-        jpath.write_text(json.dumps({'events':chunk},indent=2),encoding='utf-8')
-        gz=out/f'compact_chunk_{i//chunk_size+1:03d}.jsonl.gz'
-        with gzip.open(gz,'wt',encoding='utf-8') as g:
-            for e in chunk: g.write(json.dumps(e,separators=(',',':'))+'\n')
-        paths.extend([str(jpath),str(gz)])
+import gzip
+import json
+from collections import Counter
+from pathlib import Path
+
+from .records import compact_event, fetch_enriched_events
+
+
+def export_prompt_chunks(db_path, out_dir, chunk_size=200, collection_id=None, run_id=None):
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    rows = fetch_enriched_events(db_path, collection_id=collection_id, run_id=run_id)
+    paths = []
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i:i + chunk_size]
+        actors = {r.get("actor_id"): r.get("actor_label") for r in chunk if r.get("actor_id")}
+        units = Counter((r.get("unit") or "unknown") for r in chunk)
+        warnings = sum(int(r.get("warning_count_for_artifact_or_unit") or 0) for r in chunk)
+        payload = {
+            "chunk_meta": {
+                "chunk_index": i // chunk_size + 1,
+                "chunk_size": len(chunk),
+                "first_ts": chunk[0].get("ts") if chunk else None,
+                "last_ts": chunk[-1].get("ts") if chunk else None,
+            },
+            "actor_map": actors,
+            "unit_summary": dict(units),
+            "warning_summary": {"warning_refs": warnings},
+            "events": [compact_event(e) for e in chunk],
+        }
+        jpath = out / f'prompt_chunk_{i // chunk_size + 1:03d}.json'
+        jpath.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+        gz = out / f'compact_chunk_{i // chunk_size + 1:03d}.jsonl.gz'
+        with gzip.open(gz, 'wt', encoding='utf-8') as g:
+            for e in chunk:
+                g.write(json.dumps(compact_event(e), separators=(',', ':')) + '\n')
+        paths.extend([str(jpath), str(gz)])
     return paths

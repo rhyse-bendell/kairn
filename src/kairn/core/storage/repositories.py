@@ -131,7 +131,9 @@ def list_warnings(db_path, run_id=None):
     if run_id:
         q+=' where run_id=?'; p=(run_id,)
     return [dict(r) for r in conn.execute(q,p)]
-def list_participants_with_counts(db_path): conn=_conn(db_path); return [dict(r) for r in conn.execute('select p.*, (select count(*) from events e where e.actor=p.actor_id) event_count from participants p order by p.pid_label')]
+def list_participants_with_counts(db_path):
+    conn=_conn(db_path)
+    return [dict(r) for r in conn.execute('select p.*, coalesce(p.role,"") role, coalesce(p.notes,"") notes, coalesce(p.is_ai_agent,0) is_ai_agent, (select count(*) from events e where e.actor=p.actor_id) event_count from participants p order by p.pid_label')]
 def list_runs(db_path, collection_id=None, collaboration_id=None):
     conn=_conn(db_path); q='select * from runs where 1=1'; p=[]
     if collection_id: q+=' and collection_id=?'; p.append(collection_id)
@@ -149,7 +151,17 @@ def list_event_actions(db_path):
     conn=_conn(db_path)
     return [r['action'] for r in conn.execute("select distinct action from events where action is not null and action!='' order by action")]
 
-def update_participant_display_name(db_path, actor_id, display_name):
-    conn=_conn(db_path)
-    conn.execute('update participants set display_name=? where actor_id=?',(display_name,actor_id))
+def update_participant(db_path, actor_id, display_name=None, role=None, notes=None, is_ai_agent=None):
+    conn = _conn(db_path)
+    sets=[]; vals=[]
+    for k,v in (("display_name",display_name),("role",role),("notes",notes),("is_ai_agent",is_ai_agent)):
+        if v is not None:
+            sets.append(f"{k}=?"); vals.append(v)
+    if not sets:
+        return
+    vals.append(actor_id)
+    conn.execute(f"update participants set {', '.join(sets)} where actor_id=?", tuple(vals))
     conn.commit()
+
+def update_participant_display_name(db_path, actor_id, display_name):
+    update_participant(db_path, actor_id, display_name=display_name)

@@ -11,3 +11,6 @@ The Sources workbench triggers `kairn.core.ingestion.service.ingest_root`, then 
 - Adapters register artifacts and emit events/deltas where possible.
 - Binary/unknown files are registered safely with non-fatal warnings.
 - Ingestion warnings are retained for exports and diagnostics.
+
+## Ingestion notes
+Ingestion uniqueness is collection-scoped (`collection_id + rel_path`), and unchanged content does not emit duplicate edit events.
