@@ -23,6 +23,9 @@ class AppState:
     active_run_csv_dir: str | None = None
     active_run_viz_dir: str | None = None
     active_run_prompt_dir: str | None = None
+    active_run_reports_dir: str | None = None
+    active_run_chunks_dir: str | None = None
+    active_run_meta_path: str | None = None
 
     def __post_init__(self) -> None:
         workspace = Path(self.workspace_dir)
@@ -34,3 +37,15 @@ class AppState:
         self.snapshots_dir = str(Path(self.snapshots_dir))
         self.outputs_dir = str(Path(self.outputs_dir))
         self.last_output_dir = self.outputs_dir
+
+
+    def set_active_run_paths(self, paths: dict) -> None:
+        self.active_run_dir = paths.get("run_dir")
+        self.active_run_json_dir = paths.get("json_dir")
+        self.active_run_csv_dir = paths.get("csv_dir")
+        self.active_run_viz_dir = paths.get("viz_dir")
+        self.active_run_prompt_dir = paths.get("prompt_dir")
+        self.active_run_reports_dir = paths.get("reports_dir")
+        self.active_run_chunks_dir = paths.get("chunks_dir")
+        self.active_run_meta_path = paths.get("meta_path")
+        self.last_output_dir = self.active_run_dir or self.outputs_dir

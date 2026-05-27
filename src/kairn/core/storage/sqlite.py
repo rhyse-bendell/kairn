@@ -35,5 +35,12 @@ def init_db(conn: sqlite3.Connection) -> None:
         conn.execute('alter table runs add column collaboration_id text')
     conn.commit()
 
+    participant_cols = {r['name'] for r in conn.execute("pragma table_info(participants)").fetchall()}
+    if 'role' not in participant_cols:
+        conn.execute('alter table participants add column role text')
+    if 'notes' not in participant_cols:
+        conn.execute('alter table participants add column notes text')
+    if 'is_ai_agent' not in participant_cols:
+        conn.execute('alter table participants add column is_ai_agent integer default 0')
 
     conn.execute('create unique index if not exists idx_artifacts_collection_rel_path on artifacts(collection_id, rel_path)')

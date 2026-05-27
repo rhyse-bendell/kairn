@@ -28,3 +28,12 @@ Current MVP includes a functional desktop workbench shell:
 - diagnostics/maintenance
 - trace-based indicators
 - desktop GUI workbenches
+
+## Run scoped output layout
+- json/compiled.json
+- json/events.jsonl
+- json/events.compact.jsonl.gz
+- json/prompt_chunks/
+- csv/timeline.csv + sessions.csv + metrics.csv
+- viz/global_timeline.html (+ viz/units/*.html when generated)
+- reports/diagnostics.json + diagnostics.txt + indicators.json

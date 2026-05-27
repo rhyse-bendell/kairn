@@ -36,3 +36,9 @@ Basic local testing workflow:
 6. Run Metrics + Activity Indicators in Analysis.
 7. Export compiled JSON, JSONL, compact and prompt chunks from Exports.
 8. Run Diagnostics and maintenance actions.
+
+## Run-scoped outputs (MVP)
+
+Kairn now writes exports under collaboration run folders:
+`collaborations/<collaboration>/runs/<run_id>/{json,csv,viz,reports}` with prompt chunks under `json/prompt_chunks`.
+

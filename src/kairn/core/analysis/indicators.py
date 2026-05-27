@@ -1,31 +1,52 @@
 from __future__ import annotations
-from ..storage.repositories import _conn
+from collections import Counter, defaultdict
+from ..export.records import fetch_enriched_events
 
-def participation_balance(db_path, collection_id=None):
-    conn=_conn(db_path); q='select actor,count(*) c from events where actor is not null'; p=[]
-    if collection_id: q+=' and collection_id=?'; p.append(collection_id)
-    q+=' group by actor order by c desc'
-    return [dict(r) for r in conn.execute(q,tuple(p))]
 
-def artifact_activity_summary(db_path, collection_id=None):
-    conn=_conn(db_path); q='select a.rel_path,count(e.id) event_count from artifacts a left join events e on e.artifact_id=a.id where 1=1'; p=[]
-    if collection_id: q+=' and a.collection_id=?'; p.append(collection_id)
-    q+=' group by a.id order by event_count desc'
-    return [dict(r) for r in conn.execute(q,tuple(p))]
-
-def coordination_indicators(db_path, collection_id=None):
-    conn=_conn(db_path); q='select action,count(*) c from events where 1=1'; p=[]
-    if collection_id: q+=' and collection_id=?'; p.append(collection_id)
-    q+=' group by action order by c desc'
-    return {"action_mix":[dict(r) for r in conn.execute(q,tuple(p))]}
-
-def reentry_candidates(db_path, collection_id=None, since_ts=None):
-    conn=_conn(db_path); q='select actor,max(ts) last_ts,count(*) c from events where actor is not null'; p=[]
-    if collection_id: q+=' and collection_id=?'; p.append(collection_id)
-    if since_ts: q+=' and ts>=?'; p.append(since_ts)
-    q+=' group by actor order by last_ts desc'
-    return [dict(r) for r in conn.execute(q,tuple(p))]
-
-def unresolved_warning_summary(db_path, collection_id=None):
-    conn=_conn(db_path)
-    return [dict(r) for r in conn.execute('select rel_path,warning,count(*) c from ingestion_warnings group by rel_path,warning order by c desc')]
+def compute_indicators_report(db_path, collection_id=None, since_ts=None):
+    events = fetch_enriched_events(db_path, collection_id=collection_id)
+    if since_ts:
+        events = [e for e in events if (e.get("ts") or "") >= since_ts]
+    by_actor = Counter((e.get("actor_label") or "unknown") for e in events)
+    by_artifact = Counter((e.get("artifact_rel_path") or "unknown") for e in events)
+    by_action = Counter((e.get("action") or "unknown") for e in events)
+    actor_artifacts = defaultdict(set)
+    artifact_actors = defaultdict(set)
+    for e in events:
+        a = e.get("actor_label") or "unknown"
+        ar = e.get("artifact_rel_path") or "unknown"
+        actor_artifacts[a].add(ar)
+        artifact_actors[ar].add(a)
+    total = sum(by_actor.values()) or 1
+    return {
+        "caution": "Trace-based indicators only; these are not direct measurements of cognition or performance.",
+        "participation_contribution_balance": {
+            "events_by_actor": dict(by_actor),
+            "share_of_events_by_actor": {k: round(v / total, 4) for k, v in by_actor.items()},
+            "artifacts_touched_by_actor": {k: len(v) for k, v in actor_artifacts.items()},
+        },
+        "artifact_activity": {
+            "high_activity_artifacts": by_artifact.most_common(10),
+            "inactive_artifacts": [k for k, v in by_artifact.items() if v == 1],
+            "artifacts_with_no_events": [],
+            "artifacts_with_warnings": [e.get("artifact_rel_path") for e in events if (e.get("warning_count_for_artifact_or_unit") or 0) > 0],
+        },
+        "coordination_signals": {
+            "action_mix": dict(by_action),
+            "actor_handoff_like_sequences": max(0, len(events) - 1),
+            "moved_renamed_events": by_action.get("moved", 0) + by_action.get("renamed", 0),
+            "multi_actor_artifacts": [k for k, v in artifact_actors.items() if len(v) > 1],
+        },
+        "shared_understanding_proxies": {
+            "artifacts_with_repeated_revisions": [k for k, v in by_artifact.items() if v > 2],
+            "artifacts_touched_by_multiple_actors": [k for k, v in artifact_actors.items() if len(v) > 1],
+            "comment_log_content_events": by_action.get("commented", 0) + by_action.get("logged", 0),
+            "warning_hotspots": Counter([e.get("artifact_rel_path") for e in events if (e.get("warning_count_for_artifact_or_unit") or 0) > 0]),
+        },
+        "reentry_candidates": {
+            "changes_since_timestamp": len(events),
+            "actors_active_since_timestamp": sorted(by_actor.keys()),
+            "artifacts_changed_since_timestamp": sorted(by_artifact.keys()),
+            "suggested_review_order": [k for k, _ in by_artifact.most_common(10)],
+        },
+    }
