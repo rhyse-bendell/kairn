@@ -1,0 +1,22 @@
+[build-system]
+requires=["setuptools>=68","wheel"]
+build-backend="setuptools.build_meta"
+
+[project]
+name="kairn"
+version="0.1.0"
+description="Digital exhaust observatory for collaborative knowledge work"
+requires-python=">=3.10"
+dependencies=["plotly>=5", "python-dateutil>=2.8"]
+
+[project.optional-dependencies]
+docx=["python-docx"]
+pdf=["pymupdf"]
+image=["Pillow"]
+pptx=["python-pptx"]
+
+[project.scripts]
+kairn="kairn.cli.main:main"
+
+[tool.pytest.ini_options]
+pythonpath=["src"]
