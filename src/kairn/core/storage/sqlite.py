@@ -14,7 +14,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     create table if not exists collections(id text primary key, collaboration_id text, root_path text, label text, created_at text);
     create table if not exists collaborations(id text primary key, name text not null, description text, status text, created_at text, updated_at text, active_collection_id text, default_root_path text, metadata_json text);
     create table if not exists runs(id text primary key, collection_id text, collaboration_id text, root_path text, started_at text);
-    create table if not exists artifacts(id text primary key, collection_id text, rel_path text unique, path text, name text, extension text, kind text, size_bytes int, modified_at text, content_hash text);
+    create table if not exists artifacts(id text primary key, collection_id text, rel_path text, path text, name text, extension text, kind text, size_bytes int, modified_at text, content_hash text);
     create table if not exists versions(id text primary key, artifact_id text, content_hash text, created_at text, snapshot_path text);
     create table if not exists events(id text primary key, collection_id text, artifact_id text, action text, actor text, ts text, mentioned_unit text, summary text, raw_row text);
     create table if not exists deltas(id text primary key, event_id text, delta_type text, payload text);
@@ -34,3 +34,6 @@ def init_db(conn: sqlite3.Connection) -> None:
     if 'collaboration_id' not in run_cols:
         conn.execute('alter table runs add column collaboration_id text')
     conn.commit()
+
+
+    conn.execute('create unique index if not exists idx_artifacts_collection_rel_path on artifacts(collection_id, rel_path)')
