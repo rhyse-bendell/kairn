@@ -10,8 +10,18 @@ Kairn is a standalone digital exhaust observatory for collaborative knowledge wo
 - `kairn categories add --collaboration-id <id> NAME`
 
 ## GUI
+Install:
 ```bash
 pip install -e ".[gui]"
+```
+Launch:
+```bash
 kairn-gui
 ```
-Current GUI is an initial shell with dashboard-first workflows and incremental workbench expansion.
+
+Basic local testing workflow:
+1. Create collaboration.
+2. Select root folder.
+3. Run ingestion.
+4. Inspect Sources / Artifacts / Timeline.
+5. Run Metrics / Exports / Visualization.

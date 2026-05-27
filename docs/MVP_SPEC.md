@@ -5,5 +5,14 @@
 - Produces timelines, exports, metrics, and visualizations.
 - Preserves Ailys KS behavior for text/changelog inputs.
 
-## GUI Workbench Direction
-Kairn now includes a Collaboration dashboard/workbench desktop shell for iterative feature testing and parity validation.
+## GUI Workbench (MVP)
+Current MVP includes a functional desktop workbench shell:
+- Dashboard: collaboration create/load, root selection, ingestion, summary counts.
+- Sources: artifact/warning inspection and ingestion trigger.
+- Agents: participant rebuild and participant listing.
+- Artifacts: artifact registry + per-artifact event inspection.
+- Timeline: event table filters + visualization generation/open.
+- Categories: category listing and add-category flow.
+- Analysis: activity indicator metrics generation and table preview.
+- Exports: compiled JSON/JSONL/timeline CSV and output folder access.
+- Diagnostics: DB count summary, warning inspection, maintenance actions.
