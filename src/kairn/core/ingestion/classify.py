@@ -8,6 +8,10 @@ def classify(path:Path)->str:
     if ext=='.docx': return 'docx'
     if ext=='.pdf': return 'pdf'
     if ext=='.pptx': return 'pptx'
+    if ext=='.zip': return 'archive'
+    if ext in {'.db','.sqlite','.sqlite3'}: return 'sqlite'
+    if ext in {'.html','.htm'}: return 'html'
+    if ext in {'.jsonl','.vtt','.srt'}: return 'text'
     if ext in IMAGE_EXT: return 'image'
     if 'changelog' in n or 'activity' in n: return 'changelog'
     if ext=='.json':

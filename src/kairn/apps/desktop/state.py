@@ -16,6 +16,8 @@ class AppState:
     last_visualization_path: str | None = None
     last_metrics_path: str | None = None
     last_timeline_csv_path: str | None = None
+    active_profile_name: str = "problem_framing_workshop"
+    last_artifact_catalog_paths: dict | None = None
     snapshots_dir: str = field(default="./kairn_workspace/snapshots")
     outputs_dir: str = field(default="./kairn_workspace/outputs")
     active_run_dir: str | None = None

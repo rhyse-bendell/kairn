@@ -1,4 +1,4 @@
-import argparse
+import argparse, json
 from pathlib import Path
 from kairn.core.ingestion.service import ingest_root
 from kairn.core.export.compiled_json import export_compiled
@@ -8,6 +8,8 @@ from kairn.core.analysis.metrics import compute_metrics
 from kairn.core.visualization.timeline_plotly import build_timeline_html
 from kairn.core.maintenance.rebuild_participants import rebuild
 from kairn.core.storage import repositories as repo
+from kairn.core.profiles import list_builtin_profiles, load_profile
+from kairn.core.catalog.artifact_catalog import export_artifact_catalog
 
 def main():
     p=argparse.ArgumentParser('kairn'); sp=p.add_subparsers(dest='cmd')
@@ -19,6 +21,8 @@ def main():
     m=sp.add_parser('metrics'); m.add_argument('--root',required=True); m.add_argument('--db',default='kairn.db')
     v=sp.add_parser('visualize'); vsp=v.add_subparsers(dest='vtype'); t=vsp.add_parser('timeline'); t.add_argument('--root',required=True); t.add_argument('--db',default='kairn.db')
     part=sp.add_parser('participants'); psp=part.add_subparsers(dest='ptype'); rb=psp.add_parser('rebuild'); rb.add_argument('--db',default='kairn.db')
+    prof=sp.add_parser('profiles'); prsp=prof.add_subparsers(dest='prtype'); prsp.add_parser('list'); ps=prsp.add_parser('show'); ps.add_argument('profile')
+    catalog=sp.add_parser('catalog'); catsp=catalog.add_subparsers(dest='catalog_type'); cb=catsp.add_parser('build'); cb.add_argument('--db',default='kairn.db'); cb.add_argument('--collection-id'); cb.add_argument('--collaboration-id'); cb.add_argument('--profile',default='problem_framing_workshop'); cb.add_argument('--out-dir',required=True)
     sp.add_parser('diagnose'); mt=sp.add_parser('maintenance'); msp=mt.add_subparsers(dest='mtype'); msp.add_parser('fix-changelog-timestamps')
     a=p.parse_args()
     if a.cmd=='ingest': ingest_root(a.root_path,a.db, collaboration_id=a.collaboration_id)
@@ -31,4 +35,11 @@ def main():
     elif a.cmd=='metrics': compute_metrics(a.db,str(Path(a.root)/'metrics.csv'))
     elif a.cmd=='visualize' and a.vtype=='timeline': build_timeline_html(a.db,str(Path(a.root)/'timeline.html'))
     elif a.cmd=='participants' and a.ptype=='rebuild': rebuild(a.db)
+    elif a.cmd=='profiles' and a.prtype=='list': [print(f"{p['name']}\t{p.get('description','')}") for p in list_builtin_profiles()]
+    elif a.cmd=='profiles' and a.prtype=='show': print(json.dumps(load_profile(a.profile), indent=2))
+    elif a.cmd=='catalog' and a.catalog_type=='build':
+        if not a.collection_id and not a.collaboration_id:
+            raise SystemExit('catalog build requires --collection-id or --collaboration-id')
+        paths=export_artifact_catalog(a.db,a.out_dir,collection_id=a.collection_id,collaboration_id=a.collaboration_id,profile_name_or_path=a.profile)
+        [print(f"{k}: {v}") for k,v in paths.items() if k != 'summary']
 if __name__=='__main__': main()
