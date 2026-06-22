@@ -1,0 +1,22 @@
+{
+  "name": "problem_framing_workshop",
+  "description": "Built-in profile for problem-framing workshop artifact cataloging. Provides source-type, role, and phase labels only; it does not parse workshop content.",
+  "expected_source_types": ["tldraw_sqlite", "drive_activity_csv", "document_changelog", "html_export", "static_docx", "static_pptx", "archive", "clean_transcript", "rubric_scores"],
+  "artifact_roles": ["tldraw_board_log", "drive_activity_log", "individual_synthesis", "team_synthesis", "framing_elements_terms", "problem_framing_statement", "map_statement_feedback", "reflection_motivation", "participant_introductions", "rubric_material", "transcript", "rubric_scores", "archive", "unknown"],
+  "phases": ["orientation_setup", "individual_synthesis", "team_synthesis", "divergent_ideation", "categorization_structuring", "relational_mapping_integration", "refinement_adaptation", "convergence_problem_statement_drafting", "presentation_feedback", "reflection_motivation"],
+  "role_rules": [
+    {"role": "tldraw_board_log", "regex": "(?i)(tl\\s*draw|tldraw|board).*?(log|audit)|(?:log|audit).*?(tl\\s*draw|tldraw|board)", "confidence": 0.86},
+    {"role": "drive_activity_log", "regex": "(?i)(daily[_ -]?log|activity[_ -]?log|drive.*activity)", "confidence": 0.9},
+    {"role": "rubric_scores", "regex": "(?i)(rubric|score|scores|rating|ratings|rater|outcome|outcomes).*(csv|xlsx|json|jsonl|tsv)$", "confidence": 0.84},
+    {"role": "rubric_material", "regex": "(?i)(rubric|scoring|criteria|evaluation)", "confidence": 0.74},
+    {"role": "problem_framing_statement", "regex": "(?i)(problem[_ -]?framing|framing).*?(statement|draft|final)|(?:statement).*?(problem[_ -]?framing|framing)", "confidence": 0.86},
+    {"role": "individual_synthesis", "regex": "(?i)(individual|personal|participant).*?(synthesis|notes|worksheet|response)", "confidence": 0.82},
+    {"role": "team_synthesis", "regex": "(?i)(team|group).*?(synthesis|notes|worksheet|response)", "confidence": 0.82},
+    {"role": "framing_elements_terms", "regex": "(?i)(framing[_ -]?elements|terms|keywords|concepts)", "confidence": 0.78},
+    {"role": "map_statement_feedback", "regex": "(?i)(feedback|critique|comments?).*(map|statement|presentation)|(?:map|statement|presentation).*?(feedback|critique|comments?)", "confidence": 0.78},
+    {"role": "reflection_motivation", "regex": "(?i)(reflection|motivation|reflective)", "confidence": 0.82},
+    {"role": "participant_introductions", "regex": "(?i)(introduction|introductions|intro|bio|background)", "confidence": 0.72},
+    {"role": "transcript", "regex": "(?i)(transcript|diarized|utterance|captions?)", "confidence": 0.9},
+    {"role": "archive", "regex": "(?i)\\.(zip|tar|tgz|gz)$", "confidence": 0.95}
+  ]
+}

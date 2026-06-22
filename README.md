@@ -42,3 +42,17 @@ Basic local testing workflow:
 Kairn now writes exports under collaboration run folders:
 `collaborations/<collaboration>/runs/<run_id>/{json,csv,viz,reports}` with prompt chunks under `json/prompt_chunks`.
 
+
+## Profile-driven artifact catalog
+
+Kairn supports a profile-driven artifact catalog for ingested collections. Profiles describe expected source types and artifact roles without hardcoding workshop assumptions into the core ingestion system. The first built-in profile is `problem_framing_workshop`.
+
+```bash
+kairn profiles list
+kairn profiles show problem_framing_workshop
+kairn catalog build --db kairn.db --collection-id <collection-id> --profile problem_framing_workshop --out-dir <output-or-run-dir>
+```
+
+The catalog command writes `artifact_catalog.csv`, `artifact_catalog.json`, `artifact_catalog_summary.json`, and `artifact_catalog_summary.txt` to the selected output directory. The desktop Sources tab can also build/refresh the catalog for the active collection and shows source type, artifact role, team/participant hints, confidence, and warnings.
+
+This MVP slice is intentionally limited to cataloging and detection. It does not implement TLDraw audit-log parsing, board reconstruction, metrics, LLM scoring, outcome scoring, Drive event parsing, or transcript/MITM coding.
