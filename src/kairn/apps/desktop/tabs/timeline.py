@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QLineEdit
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QLineEdit,QCheckBox
 from kairn.core.storage import repositories as repo
 from kairn.core.visualization.timeline_plotly import build_timeline_html
 from ..workers import TaskWorker
@@ -7,13 +7,20 @@ from ..widgets import set_table_rows,open_path,append_log
 class TimelineTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.worker=None
-        l=QVBoxLayout(self); r=QHBoxLayout(); self.af=QLineEdit(); self.ac=QLineEdit(); self.uf=QLineEdit()
+        l=QVBoxLayout(self); r=QHBoxLayout(); self.af=QLineEdit(); self.ac=QLineEdit(); self.uf=QLineEdit(); self.use_unified=QCheckBox('Unified process events')
         for w in [self.af,self.ac,self.uf]: w.setPlaceholderText('filter')
         br=QPushButton('Refresh Events'); br.clicked.connect(self.refresh); bg=QPushButton('Generate Visualization'); bg.clicked.connect(self.gen); bo=QPushButton('Open Last Visualization'); bo.clicked.connect(self.open)
-        [r.addWidget(x) for x in [self.af,self.ac,self.uf,br,bg,bo]]; l.addLayout(r)
+        [r.addWidget(x) for x in [self.af,self.ac,self.uf,self.use_unified,br,bg,bo]]; l.addLayout(r)
         self.t=QTableWidget(); l.addWidget(self.t)
     def refresh(self):
-        rows=repo.list_events(self.state.db_path,self.state.active_collection_id)
+        
+        if self.use_unified.isChecked():
+            import sqlite3
+            conn=sqlite3.connect(self.state.db_path); conn.row_factory=sqlite3.Row
+            rows=[dict(x) for x in conn.execute('select timestamp_utc as ts, action, participant_name as actor, artifact_id, artifact_ref as mentioned_unit, summary from unified_process_events order by timestamp_utc')] if conn.execute("select 1 from sqlite_master where type='table' and name='unified_process_events'").fetchone() else []
+            conn.close()
+        else:
+            rows=repo.list_events(self.state.db_path,self.state.active_collection_id)
         rows=[x for x in rows if self.af.text().lower() in (x.get('actor') or '').lower() and self.ac.text().lower() in (x.get('action') or '').lower() and self.uf.text().lower() in ((x.get('artifact_id') or '')+(x.get('mentioned_unit') or '')).lower()]
         set_table_rows(self.t,rows,['ts','action','actor','artifact_id','mentioned_unit','summary'])
     def gen(self):

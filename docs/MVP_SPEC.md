@@ -78,3 +78,16 @@ Catalog rows include source type, artifact role, team and participant hints, con
 ### Current scope and non-goals
 
 This catalog slice detects source/role hints from artifact paths, names, broad kinds, and a lightweight optional SQLite `audit_logs` table check. It does **not** parse TLDraw audit rows, reconstruct boards, extract nodes/edges, compute whiteboard/process metrics, parse Drive CSV rows into workflow events, upgrade changelog timestamps, ingest transcript content, run LLM scoring, perform outcome scoring, or add dashboard indicator visualizations. Those capabilities remain follow-up work.
+
+## Workshop Data Product Checklist
+
+Implemented for the first real-data foundation layer:
+
+- [x] `artifact_catalog` profile-driven source and role detection for workshop folders.
+- [x] `raw_tldraw_events` preserving SQLite `audit_logs` rows.
+- [x] `parsed_tldraw_events` with normalized TLDraw payload fields and provenance links.
+- [x] `drive_activity_events` from `dailyLog.csv`.
+- [x] `document_edit_events` from bracketed and Drive-style changelogs.
+- [x] `unified_process_events` combining TLDraw, Drive, and document streams.
+- [x] `board_snapshots` minimal board-state reconstruction counts.
+- [ ] `outcome_scores` remains future work.
