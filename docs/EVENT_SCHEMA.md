@@ -38,3 +38,42 @@ Minimal TLDraw board-state snapshots with team/room, snapshot timestamp, event i
 `ReplayEvent` is an in-memory normalized view used by the replay backend and desktop workbench. It is derived preferentially from `unified_process_events`; when that table is unavailable or empty, Kairn falls back to `parsed_tldraw_events`, `drive_activity_events`, `document_edit_events`, and the generic `events` table.
 
 Fields include `replay_event_id`, `source`, `source_table`, `source_event_id`, `timestamp_utc`, `relative_time_s`, `sequence_index`, `team_id`, `participant_id`, `participant_name`, `actor_label`, `action`, `object_type`, `artifact_stream`, `artifact_ref`, `content_text`, `summary`, `callout_title`, `callout_body`, optional geometry (`x`, `y`, `width`, `height`), and `metadata` containing source provenance. Replay events do not replace stored process-event tables; they provide a chronological, UI-friendly projection with generated callouts and contribution summaries.
+
+## Source Detection Result Schema
+
+`detect_compatible_source(path)` returns a dictionary with:
+
+- `path`: inspected path.
+- `kind`: broad container type such as `archive`, `folder`, `sqlite`, `csv`, `text`, `html`, `document`, or `slides`.
+- `source_type`: dataset-specific type such as `workshop_archive`, `workshop_root_folder`, `tldraw_sqlite_log`, `drive_activity_log`, `document_changelog`, `drive_folder_changelog`, `mixed_changelog`, `google_doc_html_export`, `static_workshop_material`, or `nested_team_archive`.
+- `compatible`: boolean indicating whether Kairn has a useful workflow for the source.
+- `confidence`: numeric confidence from 0 to 1.
+- `available_actions`: action identifiers exposed by CLI/GUI workflows.
+- `suggested_next_action`: recommended first action.
+- `warnings`: non-fatal issues.
+- Optional summaries such as `archive_inspection` or folder hints.
+
+## Parsed Workshop Data Products
+
+Run-scoped workshop exports include:
+
+- `artifact_catalog.csv`, `artifact_catalog.json`, `artifact_catalog_summary.json`, and `artifact_catalog_summary.txt`.
+- `raw_tldraw_events.csv` and `raw_tldraw_events.jsonl`.
+- `parsed_tldraw_events.csv` and `parsed_tldraw_events.jsonl`.
+- `drive_activity_events.csv` and `drive_activity_events.jsonl`.
+- `document_edit_events.csv` and `document_edit_events.jsonl`.
+- `unified_process_events.csv` and `unified_process_events.jsonl`.
+- `replay_events.csv` and `replay_events.json`.
+- `replay_summary.json`.
+- `workshop_intake_summary.json` and `workshop_intake_summary.txt`.
+
+## Replay Event Schema
+
+Replay events are loaded from `unified_process_events` when available and otherwise fall back to parsed source tables. Each replay event includes:
+
+- Identity/provenance: replay id, source, source table, source event id, metadata/provenance JSON.
+- Time/order: `timestamp_utc`, relative time seconds, sequence index.
+- Actor context: team id, participant id, participant name, actor label.
+- Action context: action, object type, artifact stream, artifact reference, content text, summary.
+- Display fields: callout title and callout body.
+- TLDraw geometry when available: `x`, `y`, `width`, `height`, plus room/entity/source/arrow/binding details in metadata.
