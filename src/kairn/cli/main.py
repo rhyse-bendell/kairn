@@ -15,6 +15,9 @@ from kairn.core.drive.activity_parser import parse_drive_activity_csv
 from kairn.core.documents.changelog_parser import parse_all_changelogs_under_root
 from kairn.core.process.unified_events import build_unified_process_events
 from kairn.core.process.snapshots import create_board_snapshots
+from kairn.core.sources import detect_compatible_source
+from kairn.core.replay import load_replay_events, get_replay_summary
+from kairn.core.replay.export import export_replay_events_csv, export_replay_events_json, export_replay_summary_json
 from kairn.core.export.workshop import export_workshop_data
 
 def main():
@@ -33,6 +36,8 @@ def main():
     td=sp.add_parser('tldraw'); tdsp=td.add_subparsers(dest='tldraw_type'); tdi=tdsp.add_parser('inspect'); tdi.add_argument('db_path'); tdp=tdsp.add_parser('parse'); tdp.add_argument('db_path'); tdp.add_argument('--db',default='kairn.db'); tdp.add_argument('--collection-id'); tdp.add_argument('--run-id')
     dr=sp.add_parser('drive'); drsp=dr.add_subparsers(dest='drive_type'); drp=drsp.add_parser('parse'); drp.add_argument('csv_path'); drp.add_argument('--db',default='kairn.db'); drp.add_argument('--collection-id'); drp.add_argument('--run-id')
     docs=sp.add_parser('documents'); dosp=docs.add_subparsers(dest='documents_type'); dop=dosp.add_parser('parse-changelogs'); dop.add_argument('root_path'); dop.add_argument('--db',default='kairn.db'); dop.add_argument('--collection-id'); dop.add_argument('--run-id')
+    srcp=sp.add_parser('sources'); srcsp=srcp.add_subparsers(dest='sources_type'); si=srcsp.add_parser('inspect'); si.add_argument('path')
+    rep=sp.add_parser('replay'); repsp=rep.add_subparsers(dest='replay_type'); rs=repsp.add_parser('summary'); rs.add_argument('--db',default='kairn.db'); rs.add_argument('--collection-id'); rs.add_argument('--run-id'); re=repsp.add_parser('export'); re.add_argument('--db',default='kairn.db'); re.add_argument('--collection-id'); re.add_argument('--run-id'); re.add_argument('--out-dir',required=True)
     proc=sp.add_parser('process'); prsp=proc.add_subparsers(dest='process_type'); pbu=prsp.add_parser('build-unified'); pbu.add_argument('--db',default='kairn.db'); pbu.add_argument('--collection-id'); pbu.add_argument('--run-id'); psn=prsp.add_parser('snapshots'); psn.add_argument('--db',default='kairn.db'); psn.add_argument('--collection-id'); psn.add_argument('--run-id')
     sp.add_parser('diagnose'); mt=sp.add_parser('maintenance'); msp=mt.add_subparsers(dest='mtype'); msp.add_parser('fix-changelog-timestamps')
     a=p.parse_args()
@@ -53,6 +58,10 @@ def main():
     elif a.cmd=='tldraw' and a.tldraw_type=='parse': print(json.dumps(parse_tldraw_audit_logs(a.db_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='drive' and a.drive_type=='parse': print(json.dumps(parse_drive_activity_csv(a.csv_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='documents' and a.documents_type=='parse-changelogs': print(json.dumps(parse_all_changelogs_under_root(a.root_path,a.db,a.collection_id,a.run_id), indent=2))
+    elif a.cmd=='sources' and a.sources_type=='inspect': print(json.dumps(detect_compatible_source(a.path), indent=2))
+    elif a.cmd=='replay' and a.replay_type=='summary': print(json.dumps(get_replay_summary(load_replay_events(a.db,a.collection_id,a.run_id)), indent=2))
+    elif a.cmd=='replay' and a.replay_type=='export':
+        ev=load_replay_events(a.db,a.collection_id,a.run_id); summ=get_replay_summary(ev); out=Path(a.out_dir); print(json.dumps({'csv':export_replay_events_csv(ev,out/'csv'/'replay_events.csv'),'json':export_replay_events_json(ev,out/'json'/'replay_events.json'),'summary':export_replay_summary_json(summ,out/'reports'/'replay_summary.json')}, indent=2))
     elif a.cmd=='process' and a.process_type=='build-unified': print(json.dumps(build_unified_process_events(a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='process' and a.process_type=='snapshots': print(json.dumps(create_board_snapshots(a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='catalog' and a.catalog_type=='build':

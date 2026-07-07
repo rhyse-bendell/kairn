@@ -75,3 +75,11 @@ kairn export workshop --db kairn.db --out-dir outputs/workshop
 ```
 
 Implemented workshop data products include `raw_tldraw_events`, `parsed_tldraw_events`, `drive_activity_events`, `document_edit_events`, `unified_process_events`, and `board_snapshots`. The artifact catalog profile recognizes TLDraw SQLite logs, Drive daily logs, changelogs, Google document HTML exports, team/participant folder hints, task modules, and bracketed human-readable file IDs.
+
+## Replay Workbench
+
+Kairn includes a generic Replay Workbench for temporal inspection of workshop activity. Use **Select File or Folder** in the Replay tab, or `kairn sources inspect PATH`, to detect compatible inputs such as TLDraw SQLite audit logs, Drive `dailyLog.csv` files, document changelogs, ZIP archives, and workshop folders containing known source files.
+
+After parsing known sources and building unified process events, open `kairn-gui`, choose the **Replay** tab, and click **Load Events**. The workbench loads `unified_process_events` when available and falls back to parsed TLDraw, Drive activity, document edit, or generic event tables. You can scrub the timeline slider, step backward/forward, play/pause with speed presets, filter by source/team/participant, and inspect per-event callouts with provenance metadata. Summary tables show contribution counts by actor, source, action, object type, and timeline density bins.
+
+Replay events can also be exported with `kairn replay export --collection-id COLLECTION --out-dir OUT_DIR`, which writes CSV/JSON replay events and a JSON replay summary. Full TLDraw canvas reconstruction is intentionally deferred; current TLDraw replay displays categorical event details, text, coordinates, dimensions, source, and room/team metadata.

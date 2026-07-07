@@ -32,3 +32,9 @@ Combined chronological stream across TLDraw, Drive, and document tables. Stores 
 
 ### `board_snapshots`
 Minimal TLDraw board-state snapshots with team/room, snapshot timestamp, event index, object/node/arrow/binding counts, and JSON payload containing reconstructed object keys.
+
+## `ReplayEvent`
+
+`ReplayEvent` is an in-memory normalized view used by the replay backend and desktop workbench. It is derived preferentially from `unified_process_events`; when that table is unavailable or empty, Kairn falls back to `parsed_tldraw_events`, `drive_activity_events`, `document_edit_events`, and the generic `events` table.
+
+Fields include `replay_event_id`, `source`, `source_table`, `source_event_id`, `timestamp_utc`, `relative_time_s`, `sequence_index`, `team_id`, `participant_id`, `participant_name`, `actor_label`, `action`, `object_type`, `artifact_stream`, `artifact_ref`, `content_text`, `summary`, `callout_title`, `callout_body`, optional geometry (`x`, `y`, `width`, `height`), and `metadata` containing source provenance. Replay events do not replace stored process-event tables; they provide a chronological, UI-friendly projection with generated callouts and contribution summaries.
