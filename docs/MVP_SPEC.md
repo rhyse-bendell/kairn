@@ -91,3 +91,11 @@ Implemented for the first real-data foundation layer:
 - [x] `unified_process_events` combining TLDraw, Drive, and document streams.
 - [x] `board_snapshots` minimal board-state reconstruction counts.
 - [ ] `outcome_scores` remains future work.
+
+## Replay Workbench MVP
+
+- [x] Generic replay backend normalizes `unified_process_events` and fallback parsed event tables into `ReplayEvent` records.
+- [x] Desktop Replay tab supports loading events, source/team/participant filtering, timeline scrubbing, step/play/pause controls, event callouts, contribution summary tables, and density bins.
+- [x] Source detection identifies TLDraw SQLite audit logs, Drive activity CSVs, document changelogs, ZIP archives, and folders containing known workshop sources.
+- [x] Replay export writes normalized event CSV/JSON and summary JSON.
+- [ ] Source-specific visual replay remains future work. In particular, full TLDraw canvas reconstruction is deferred; the MVP only shows TLDraw object metadata and textual approximations.
