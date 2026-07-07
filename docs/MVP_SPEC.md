@@ -99,3 +99,18 @@ Implemented for the first real-data foundation layer:
 - [x] Source detection identifies TLDraw SQLite audit logs, Drive activity CSVs, document changelogs, ZIP archives, and folders containing known workshop sources.
 - [x] Replay export writes normalized event CSV/JSON and summary JSON.
 - [ ] Source-specific visual replay remains future work. In particular, full TLDraw canvas reconstruction is deferred; the MVP only shows TLDraw object metadata and textual approximations.
+
+## Current Workshop Dataset Priority
+
+The current MVP priority is reliable mining of the known workshop dataset, not broad support for arbitrary future data. Kairn explicitly detects and handles:
+
+- `Teams [124PG].zip` as a workshop archive.
+- Extracted `Teams [124PG]/` folders as workshop root folders.
+- `TLDraw Logs.db` SQLite audit-log databases.
+- `dailyLog.csv` Drive activity logs.
+- Team and participant changelog `.txt` files in Drive-style and bracketed document formats.
+- `email_export_*.html` files for cataloging and basic text handling.
+- DOCX and PPTX workshop materials for cataloging and optional dependency-backed extraction.
+- Nested team archives such as `Team 2 [1poyK].zip` for safe inspection/extraction/cataloging.
+
+The desktop app Sources/Intake and Replay workflows call core backend services for detection, archive inspection, safe extraction, cataloging, parsing, unified event building, replay loading, and parsed-data export.
