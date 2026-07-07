@@ -5,6 +5,16 @@ from kairn.core.profiles import get_default_profile
 
 _RESULT_UNKNOWN = {"value": "unknown", "confidence": 0.0, "reason": "no matching catalog rule", "warnings": []}
 
+TASK_MODULES = ["Individual Synthesis","Team Synthesis","Framing Elements & Terms","Problem Framing Statement","Map & Statement Questions & Feedback","Reflection & Building Motivation","Pre-Workshop Introduction Template","TLDraw Whiteboard Tutorial"]
+
+def extract_task_module(rel_path: str) -> str | None:
+    low=(rel_path or '').lower()
+    return next((m for m in TASK_MODULES if m.lower() in low), None)
+
+def extract_file_id(rel_path: str) -> str | None:
+    m=re.search(r"\[([^\]]+)\]", rel_path or "")
+    return m.group(1) if m else None
+
 
 def _artifact_text(artifact: dict) -> tuple[str, str, str, str]:
     rel = str(artifact.get("rel_path") or artifact.get("path") or "")
@@ -47,9 +57,9 @@ def detect_source_type(artifact: dict, profile: dict | None = None) -> dict:
     elif ext == ".csv" and re.search(r"daily[_ -]?log|activity[_ -]?log|drive.*activity", hay):
         value, conf, reason = "drive_activity_csv", 0.92, "CSV name matches activity-log pattern"
     elif "changelog" in hay:
-        value, conf, reason = "document_changelog", 0.91, "name/path contains changelog"
+        value, conf, reason = ("document_changelog", 0.91, "name/path contains changelog")
     elif ext in {".html", ".htm"}:
-        value, conf, reason = "html_export", 0.86, "HTML extension"
+        value, conf, reason = ("google_doc_html_export", 0.9, "Google document HTML export") if "email_export" in hay else ("html_export", 0.86, "HTML extension")
     elif ext == ".docx":
         value, conf, reason = "static_docx", 0.75, "DOCX extension"
     elif ext == ".pptx":
@@ -75,7 +85,7 @@ def detect_artifact_role(artifact: dict, profile: dict | None = None) -> dict:
     if best:
         return best
     st = detect_source_type(artifact, profile)
-    mapping = {"tldraw_sqlite":"tldraw_board_log", "drive_activity_csv":"drive_activity_log", "clean_transcript":"transcript", "archive":"archive", "rubric_scores":"rubric_scores"}
+    mapping = {"tldraw_sqlite":"tldraw_board_log", "drive_activity_csv":"drive_activity_log", "google_doc_html_export":"google_doc_html_export", "clean_transcript":"transcript", "archive":"archive", "rubric_scores":"rubric_scores"}
     if st["value"] in mapping:
         return {"value": mapping[st["value"]], "confidence": max(0.55, st["confidence"]-0.05), "reason": f"inferred from source type {st['value']}", "warnings": st.get("warnings", [])}
     return dict(_RESULT_UNKNOWN)
@@ -97,4 +107,4 @@ def classify_artifact_for_catalog(artifact: dict, profile: dict | None = None) -
     for r in (source, role, team, part): warnings.extend(r.get("warnings", []))
     if source["confidence"] < 0.5: warnings.append("low source-type confidence")
     if role["confidence"] < 0.5: warnings.append("low artifact-role confidence")
-    return {"source_type": source, "artifact_role": role, "team_hint": team, "participant_hint": part, "warnings": warnings}
+    return {"source_type": source, "artifact_role": role, "team_hint": team, "participant_hint": part, "task_module": extract_task_module(str(artifact.get("rel_path") or "")), "file_id": extract_file_id(str(artifact.get("rel_path") or artifact.get("name") or "")), "warnings": warnings}

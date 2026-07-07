@@ -56,3 +56,22 @@ kairn catalog build --db kairn.db --collection-id <collection-id> --profile prob
 The catalog command writes `artifact_catalog.csv`, `artifact_catalog.json`, `artifact_catalog_summary.json`, and `artifact_catalog_summary.txt` to the selected output directory. The desktop Sources tab can also build/refresh the catalog for the active collection and shows source type, artifact role, team/participant hints, confidence, and warnings.
 
 This MVP slice is intentionally limited to cataloging and detection. It does not implement TLDraw audit-log parsing, board reconstruction, metrics, LLM scoring, outcome scoring, Drive event parsing, or transcript/MITM coding.
+
+## Working with Workshop Data
+
+Kairn includes a foundation ingestion layer for problem-framing workshop datasets. The workflow preserves provenance and parses source logs into normalized data products without AI/LLM analysis.
+
+Typical commands:
+
+```bash
+kairn catalog build --db kairn.db --collection-id COLLECTION_ID --profile problem_framing_workshop --out-dir outputs/catalog
+kairn tldraw inspect "TLDraw Logs.db"
+kairn tldraw parse "TLDraw Logs.db" --db kairn.db --collection-id COLLECTION_ID
+kairn drive parse dailyLog.csv --db kairn.db --collection-id COLLECTION_ID
+kairn documents parse-changelogs "Teams [124PG]" --db kairn.db --collection-id COLLECTION_ID
+kairn process build-unified --db kairn.db --collection-id COLLECTION_ID
+kairn process snapshots --db kairn.db --collection-id COLLECTION_ID
+kairn export workshop --db kairn.db --out-dir outputs/workshop
+```
+
+Implemented workshop data products include `raw_tldraw_events`, `parsed_tldraw_events`, `drive_activity_events`, `document_edit_events`, `unified_process_events`, and `board_snapshots`. The artifact catalog profile recognizes TLDraw SQLite logs, Drive daily logs, changelogs, Google document HTML exports, team/participant folder hints, task modules, and bracketed human-readable file IDs.

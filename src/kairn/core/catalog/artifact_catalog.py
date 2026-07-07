@@ -6,7 +6,7 @@ from kairn.core.storage import repositories as repo
 from kairn.core.profiles import load_profile
 from .detection import classify_artifact_for_catalog
 
-COLUMNS = ["artifact_id","collection_id","rel_path","name","extension","kind","size_bytes","modified_at","event_count","source_type","source_confidence","source_reason","artifact_role","role_confidence","role_reason","team_hint","team_confidence","participant_hint","participant_confidence","warnings"]
+COLUMNS = ["artifact_id","collection_id","rel_path","name","extension","kind","size_bytes","modified_at","event_count","source_type","source_confidence","source_reason","artifact_role","role_confidence","role_reason","team_hint","team_confidence","participant_hint","participant_confidence","task_module","file_id","confidence","warnings"]
 
 
 def _collection_ids_for_collaboration(db_path: str, collaboration_id: str) -> set[str]:
@@ -28,7 +28,7 @@ def build_artifact_catalog(db_path: str, collection_id: str | None = None, colla
             "artifact_id": a.get("id"), "collection_id": a.get("collection_id"), "rel_path": a.get("rel_path"), "name": a.get("name"), "extension": a.get("extension"), "kind": a.get("kind"), "size_bytes": a.get("size_bytes"), "modified_at": a.get("modified_at"), "event_count": a.get("event_count", 0),
             "source_type": st["value"], "source_confidence": st["confidence"], "source_reason": st["reason"],
             "artifact_role": role["value"], "role_confidence": role["confidence"], "role_reason": role["reason"],
-            "team_hint": team["value"], "team_confidence": team["confidence"], "participant_hint": part["value"], "participant_confidence": part["confidence"], "warnings": "; ".join(c["warnings"])
+            "team_hint": team["value"], "team_confidence": team["confidence"], "participant_hint": part["value"], "participant_confidence": part["confidence"], "task_module": c.get("task_module"), "file_id": c.get("file_id"), "confidence": min(st["confidence"], role["confidence"]), "warnings": "; ".join(c["warnings"])
         })
     return rows
 
