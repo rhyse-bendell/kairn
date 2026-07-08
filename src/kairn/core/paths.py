@@ -30,7 +30,10 @@ def ensure_run_dirs(db_path: str, collaboration_id: str | None = None, collectio
     collab = get_collaboration(db_path, collaboration_id) if collaboration_id else None
     collab_safe = safe_name(collab["name"] if collab else collab_name)
     rid = run_id or new_run_id()
-    run_dir = workspace / "collaborations" / collab_safe / "runs" / rid
+    if (workspace / "kairn_project.json").exists():
+        run_dir = workspace / "runs" / rid
+    else:
+        run_dir = workspace / "collaborations" / collab_safe / "runs" / rid
     paths = {
         "workspace_dir": workspace,
         "run_dir": run_dir,

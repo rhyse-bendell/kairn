@@ -127,3 +127,56 @@ kairn sources inspect "TLDraw Logs.db"
 kairn sources inspect "dailyLog.csv"
 kairn sources inspect "Team 1_changelog.txt"
 ```
+
+## Projects
+
+Kairn projects are durable local containers for a collaboration and its analysis outputs. In the desktop app, use **Dashboard → Start New Project** to create a project, **Load Project** to activate an existing one, and **Open Project Files** to open the active project folder in the OS file browser.
+
+By default, Kairn creates projects in:
+
+- Windows: `%USERPROFILE%\Documents\Kairn`
+- macOS/Linux with `~/Documents`: `~/Documents/Kairn`
+- Fallback: `~/.kairn`
+
+Set `KAIRN_HOME` to override the project home for testing or custom storage locations. Each project has its own `kairn.db`, so intake, parsing, replay, analysis, exports, diagnostics, and source registries stay scoped to the active project.
+
+A project folder contains:
+
+```text
+<ProjectRoot>/
+  kairn_project.json
+  kairn.db
+  data/
+    original/
+    extracted/
+    linked_sources/
+    staging/
+  catalog/
+  parsed/
+    tldraw/
+    drive/
+    documents/
+    process/
+  runs/
+  exports/
+    manual_exports/
+  logs/
+  settings/
+    project_settings.json
+    profile_settings.json
+    source_registry.json
+    participant_map.json
+```
+
+Sources can be linked in place or copied into `data/original/`. Linking preserves the original file location and records it in `settings/source_registry.json`; copying stores a project-local copy for portability. Archive extraction is project-scoped under `data/extracted/`, and run outputs are written under `runs/`.
+
+Project CLI commands:
+
+```bash
+kairn projects create NAME --description "..." --home PATH --profile problem_framing_workshop
+kairn projects list --home PATH
+kairn projects show PROJECT_PATH_OR_NAME
+kairn projects open PROJECT_PATH_OR_NAME
+kairn projects register-source PROJECT_PATH SOURCE_PATH --copy --source-type TYPE
+kairn projects new-run PROJECT_PATH --label LABEL
+```

@@ -18,6 +18,8 @@ from kairn.core.process.snapshots import create_board_snapshots
 from kairn.core.sources import detect_compatible_source
 from kairn.core.replay import load_replay_events, get_replay_summary
 from kairn.core.replay.export import export_replay_events_csv, export_replay_events_json, export_replay_summary_json
+from kairn.core.projects import create_project, load_project, list_projects, register_project_source, create_project_run
+from kairn.core.projects.service import open_project_path
 from kairn.core.export.workshop import export_workshop_data
 
 def main():
@@ -36,6 +38,7 @@ def main():
     td=sp.add_parser('tldraw'); tdsp=td.add_subparsers(dest='tldraw_type'); tdi=tdsp.add_parser('inspect'); tdi.add_argument('db_path'); tdp=tdsp.add_parser('parse'); tdp.add_argument('db_path'); tdp.add_argument('--db',default='kairn.db'); tdp.add_argument('--collection-id'); tdp.add_argument('--run-id')
     dr=sp.add_parser('drive'); drsp=dr.add_subparsers(dest='drive_type'); drp=drsp.add_parser('parse'); drp.add_argument('csv_path'); drp.add_argument('--db',default='kairn.db'); drp.add_argument('--collection-id'); drp.add_argument('--run-id')
     docs=sp.add_parser('documents'); dosp=docs.add_subparsers(dest='documents_type'); dop=dosp.add_parser('parse-changelogs'); dop.add_argument('root_path'); dop.add_argument('--db',default='kairn.db'); dop.add_argument('--collection-id'); dop.add_argument('--run-id')
+    proj=sp.add_parser('projects', help='Create, list, load, and manage local Kairn projects'); pjsp=proj.add_subparsers(dest='projects_type'); pc=pjsp.add_parser('create'); pc.add_argument('name'); pc.add_argument('--description',default=''); pc.add_argument('--home'); pc.add_argument('--profile',default='problem_framing_workshop'); pl=pjsp.add_parser('list'); pl.add_argument('--home'); psw=pjsp.add_parser('show'); psw.add_argument('project'); po=pjsp.add_parser('open'); po.add_argument('project'); prs=pjsp.add_parser('register-source'); prs.add_argument('project'); prs.add_argument('source_path'); prs.add_argument('--copy',action='store_true'); prs.add_argument('--source-type'); pnr=pjsp.add_parser('new-run'); pnr.add_argument('project'); pnr.add_argument('--label');
     srcp=sp.add_parser('sources'); srcsp=srcp.add_subparsers(dest='sources_type'); si=srcsp.add_parser('inspect'); si.add_argument('path')
     rep=sp.add_parser('replay'); repsp=rep.add_subparsers(dest='replay_type'); rs=repsp.add_parser('summary'); rs.add_argument('--db',default='kairn.db'); rs.add_argument('--collection-id'); rs.add_argument('--run-id'); re=repsp.add_parser('export'); re.add_argument('--db',default='kairn.db'); re.add_argument('--collection-id'); re.add_argument('--run-id'); re.add_argument('--out-dir',required=True)
     proc=sp.add_parser('process'); prsp=proc.add_subparsers(dest='process_type'); pbu=prsp.add_parser('build-unified'); pbu.add_argument('--db',default='kairn.db'); pbu.add_argument('--collection-id'); pbu.add_argument('--run-id'); psn=prsp.add_parser('snapshots'); psn.add_argument('--db',default='kairn.db'); psn.add_argument('--collection-id'); psn.add_argument('--run-id')
@@ -58,6 +61,14 @@ def main():
     elif a.cmd=='tldraw' and a.tldraw_type=='parse': print(json.dumps(parse_tldraw_audit_logs(a.db_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='drive' and a.drive_type=='parse': print(json.dumps(parse_drive_activity_csv(a.csv_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='documents' and a.documents_type=='parse-changelogs': print(json.dumps(parse_all_changelogs_under_root(a.root_path,a.db,a.collection_id,a.run_id), indent=2))
+
+    elif a.cmd=='projects' and a.projects_type=='create': print(json.dumps(create_project(a.name,a.description,kairn_home=a.home,profile=a.profile), indent=2))
+    elif a.cmd=='projects' and a.projects_type=='list': [print(f"{p['name']}\t{p['project_root']}\t{p.get('updated_at','')}") for p in list_projects(a.home)]
+    elif a.cmd=='projects' and a.projects_type=='show': print(json.dumps(load_project(a.project), indent=2))
+    elif a.cmd=='projects' and a.projects_type=='open':
+        pr=load_project(a.project); open_project_path(pr['project_root']); print(pr['project_root'])
+    elif a.cmd=='projects' and a.projects_type=='register-source': print(json.dumps(register_project_source(load_project(a.project), a.source_path, source_type=a.source_type, copy_into_project=a.copy), indent=2))
+    elif a.cmd=='projects' and a.projects_type=='new-run': print(json.dumps(create_project_run(load_project(a.project), label=a.label), indent=2))
     elif a.cmd=='sources' and a.sources_type=='inspect': print(json.dumps(detect_compatible_source(a.path), indent=2))
     elif a.cmd=='replay' and a.replay_type=='summary': print(json.dumps(get_replay_summary(load_replay_events(a.db,a.collection_id,a.run_id)), indent=2))
     elif a.cmd=='replay' and a.replay_type=='export':
