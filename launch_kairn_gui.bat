@@ -1,121 +1,74 @@
 @echo off
 setlocal
 
-REM Run from the directory where this batch file lives.
-pushd "%~dp0" >nul 2>&1
+for %%I in ("%~dp0.") do set "APP_ROOT=%%~fI"
+cd /d "%APP_ROOT%" >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Could not switch to the Kairn repository directory.
+    echo [Kairn] Could not switch to the Kairn repository directory.
     pause
     exit /b 1
 )
 
+if not exist "logs" mkdir "logs" >nul 2>&1
+set "LOG_FILE=%APP_ROOT%\logs\launcher.log"
+call :log "APP_ROOT=%APP_ROOT%"
+call :log "Script=launch_kairn_gui.bat"
+
 echo ========================================
 echo Kairn Windows GUI launcher
-echo Repository: %CD%
+echo Repository: %APP_ROOT%
 echo ========================================
 echo.
 
 if not exist "pyproject.toml" (
-    echo ERROR: pyproject.toml was not found in %CD%.
-    echo Please run this launcher from the Kairn repository root.
-    goto fail
+    echo [Kairn] pyproject.toml was not found in %APP_ROOT%.
+    call :log "Missing pyproject.toml"
+    pause
+    exit /b 1
 )
 
-if not exist "src\kairn" (
-    echo ERROR: src\kairn was not found in %CD%.
-    echo Please run this launcher from the Kairn repository root.
-    goto fail
+if not exist "src\kairn\apps\desktop\main.py" (
+    echo [Kairn] src\kairn\apps\desktop\main.py was not found in %APP_ROOT%.
+    call :log "Missing src\kairn\apps\desktop\main.py"
+    pause
+    exit /b 1
 )
 
-where python >nul 2>&1
+set "PYTHON_CMD=%APP_ROOT%\.venv\Scripts\python.exe"
+call :log "PYTHON_CMD=%PYTHON_CMD%"
+
+if not exist "%PYTHON_CMD%" (
+    echo [Kairn] .venv was not found. Run setup_kairn.bat first.
+    call :log ".venv Python missing"
+    pause
+    exit /b 1
+)
+
+echo [Kairn] Running lightweight import check...
+call :log "Running import check"
+"%PYTHON_CMD%" -c "import kairn; import kairn.apps.desktop.main; print('[Kairn] Import check passed.')"
 if errorlevel 1 (
-    echo ERROR: Python was not found on PATH.
-    echo Install Python 3, then open a new Command Prompt and try again.
-    goto fail
+    echo [Kairn] Dependencies are missing or stale. Run setup_kairn.bat, then launch again.
+    call :log "Import check failed"
+    pause
+    exit /b 1
 )
 
-python --version
-if errorlevel 1 (
-    echo ERROR: Python is installed but could not be run.
-    goto fail
-)
-
-if not exist ".venv\Scripts\python.exe" (
-    echo Creating virtual environment in .venv ...
-    python -m venv .venv
-    if errorlevel 1 (
-        echo ERROR: Failed to create .venv.
-        goto fail
-    )
-) else (
-    echo Using existing .venv.
-)
-
-echo Activating virtual environment ...
-call ".venv\Scripts\activate.bat"
-if errorlevel 1 (
-    echo ERROR: Failed to activate .venv.
-    goto fail
-)
-
-echo Upgrading pip ...
-python -m pip install --upgrade pip
-if errorlevel 1 (
-    echo ERROR: Failed to upgrade pip.
-    goto fail
-)
-
-echo Installing Kairn with GUI extras ...
-pip install -e ".[gui]"
-if errorlevel 1 (
-    echo ERROR: Failed to install Kairn with GUI extras.
-    goto fail
-)
-
-if not exist "kairn_workspace" (
-    echo Creating kairn_workspace ...
-    mkdir "kairn_workspace"
-    if errorlevel 1 (
-        echo ERROR: Failed to create kairn_workspace.
-        goto fail
-    )
-) else (
-    echo Using existing kairn_workspace.
-)
-
-echo Running lightweight import check ...
-python -c "import kairn; import kairn.apps.desktop.main; print('Kairn import check passed.')"
-if errorlevel 1 (
-    echo ERROR: Kairn import check failed.
-    goto fail
-)
-
-echo Checking kairn --help ...
-kairn --help >nul 2>&1
-if errorlevel 1 (
-    echo WARNING: kairn --help failed; continuing to GUI launch.
-) else (
-    echo kairn --help passed.
-)
-
-echo.
-echo Launching Kairn GUI ...
-kairn-gui
+echo [Kairn] Starting GUI...
+call :log "Starting GUI"
+"%PYTHON_CMD%" -m kairn.apps.desktop.main
 set "KAIRN_GUI_EXIT=%ERRORLEVEL%"
-echo.
-echo Kairn GUI exited with code %KAIRN_GUI_EXIT%.
-goto done
+call :log "Exit code=%KAIRN_GUI_EXIT%"
 
-:fail
-echo.
-echo Setup failed. Please review the error above.
-set "KAIRN_GUI_EXIT=1"
-goto done
+if not "%KAIRN_GUI_EXIT%"=="0" (
+    echo.
+    echo [Kairn] Launch failed with exit code %KAIRN_GUI_EXIT%.
+    echo Try running setup_kairn.bat, then launch again.
+    pause
+)
 
-:done
-echo.
-echo Press any key to close this window.
-pause >nul
-popd >nul 2>&1
-endlocal
-exit /b %KAIRN_GUI_EXIT%
+endlocal & exit /b %KAIRN_GUI_EXIT%
+
+:log
+>> "%LOG_FILE%" echo [%DATE% %TIME%][Kairn][launch] %~1
+exit /b 0

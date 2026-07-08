@@ -28,17 +28,35 @@ Basic local testing workflow:
 
 
 
-## Windows GUI launcher
+## Windows launcher scripts
 
-For easy local GUI testing on Windows:
+Kairn separates first-time setup/update work from normal day-to-day launch behavior.
 
-- Double-click `launch_kairn_gui.bat`
-- Or run from CMD/PowerShell:
-  ```powershell
-  .\launch_kairn_gui.bat
-  ```
+First-time setup, or setup after pulling Codex/GitHub changes:
 
-The launcher creates or reuses `.venv`, installs Kairn with GUI extras via `pip install -e ".[gui]"`, creates `kairn_workspace`, runs a lightweight import check, and launches `kairn-gui`.
+```powershell
+.\setup_kairn.bat
+```
+
+Normal launch:
+
+```powershell
+.\launch_kairn_gui.bat
+```
+
+The normal launcher uses the existing `.venv\Scripts\python.exe`, runs a lightweight import check, and starts the GUI with `python -m kairn.apps.desktop.main`. It does not install packages, upgrade pip, modify the virtual environment, create `kairn_workspace`, or call the generated `kairn-gui` console entry point. Keeping launch separate from setup makes startup faster, clearer, and less likely to trigger antivirus reputation checks.
+
+To run tests through the setup script:
+
+```powershell
+.\setup_kairn.bat --test
+```
+
+Or run pytest directly from the virtual environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
 
 ## Local GUI Workflow
 1. `pip install -e ".[gui]"`
