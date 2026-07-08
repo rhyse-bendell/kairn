@@ -8,11 +8,11 @@ from kairn.core.catalog.artifact_catalog import build_artifact_catalog, export_a
 from kairn.core.workshop.intake import inspect_workshop_path, prepare_workshop_source
 from kairn.core.projects import register_project_source
 from ..workers import TaskWorker
-from ..widgets import set_table_rows,append_log
+from ..widgets import set_table_rows,append_log,page_header
 class SourcesTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.worker=None; self.selected_source=None; self.last_inspection=None
-        l=QVBoxLayout(self); r=QHBoxLayout();
+        l=QVBoxLayout(self); l.addWidget(page_header('Sources / Intake','Inspect sources, extract archives, build catalogs, and parse known workshop files.','Prepare / Parse Known Sources')); r=QHBoxLayout();
         buttons=[('Select Folder',self.select),('Select File',self.select_file),('Inspect Selected Source',self.inspect_selected),('Prepare / Parse Known Sources',self.prepare_selected),('Extract ZIP + Prepare',self.extract_prepare),('Export Parsed Data Products',self.export_products),('Run Ingestion',self.ingest),('Refresh',self.refresh)]
         for txt,fn in buttons:
             b=QPushButton(txt); b.clicked.connect(fn); r.addWidget(b)

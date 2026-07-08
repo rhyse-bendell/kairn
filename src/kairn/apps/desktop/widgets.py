@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton, QTableWidgetItem
+from PySide6.QtWidgets import QFrame, QGroupBox, QLabel, QMessageBox, QPushButton, QTableWidgetItem, QVBoxLayout
 
 
 def append_log(log_widget, message: str) -> None:
@@ -63,6 +63,83 @@ def landing_button(text: str) -> QPushButton:
     )
     return button
 
+
+
+def muted_help_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setStyleSheet("color: #4b5563; font-size: 13px; line-height: 145%;")
+    return label
+
+
+def primary_action_button(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setMinimumHeight(44)
+    button.setCursor(Qt.PointingHandCursor)
+    font = button.font()
+    font.setBold(True)
+    font.setPointSize(max(font.pointSize() + 1, 11))
+    button.setFont(font)
+    button.setStyleSheet("QPushButton { padding: 10px 16px; border-radius: 6px; font-weight: 700; }")
+    return button
+
+
+def secondary_action_button(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setMinimumHeight(30)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setStyleSheet("QPushButton { padding: 6px 10px; }")
+    return button
+
+
+def page_header(title: str, description: str, primary_action_text: str | None = None) -> QWidget:
+    frame = QFrame()
+    layout = QVBoxLayout(frame)
+    layout.setContentsMargins(0, 0, 0, 10)
+    title_label = QLabel(title)
+    font = QFont()
+    font.setPointSize(22)
+    font.setBold(True)
+    title_label.setFont(font)
+    desc = muted_help_label(description)
+    layout.addWidget(title_label)
+    layout.addWidget(desc)
+    if primary_action_text:
+        label = muted_help_label(f"Primary action: {primary_action_text}")
+        label.setStyleSheet("color: #111827; font-size: 13px; font-weight: 700;")
+        layout.addWidget(label)
+    return frame
+
+
+def section_header(title: str, description: str | None = None) -> QWidget:
+    frame = QFrame()
+    layout = QVBoxLayout(frame)
+    layout.setContentsMargins(0, 0, 0, 4)
+    label = QLabel(title)
+    font = label.font()
+    font.setBold(True)
+    font.setPointSize(max(font.pointSize() + 1, 11))
+    label.setFont(font)
+    layout.addWidget(label)
+    if description:
+        layout.addWidget(muted_help_label(description))
+    return frame
+
+
+def action_tile(title: str, description: str, button_text: str | None = None) -> QWidget:
+    box = QGroupBox(title)
+    layout = QVBoxLayout(box)
+    layout.addWidget(muted_help_label(description))
+    if button_text:
+        layout.addWidget(secondary_action_button(button_text))
+    return box
+
+
+def callout_box(title: str, body: str) -> QGroupBox:
+    box = QGroupBox(title)
+    layout = QVBoxLayout(box)
+    layout.addWidget(muted_help_label(body))
+    return box
 
 def set_table_rows(table, rows, columns) -> None:
     table.setColumnCount(len(columns))

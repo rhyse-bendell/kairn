@@ -95,3 +95,21 @@ def test_dashboard_import_instantiates(monkeypatch):
     tab = DashboardTab(state, QTextEdit())
     assert tab.start_button.text() == "Start New Project"
     app.processEvents()
+
+
+def test_import_folder_to_project_copy_mode_updates_registry(tmp_path):
+    from kairn.core.projects import import_folder_to_project
+
+    project = create_project("Folder Import", kairn_home=tmp_path / "home")
+    external = tmp_path / "external_dataset"
+    external.mkdir()
+    (external / "sample.txt").write_text("hello", encoding="utf-8")
+
+    rec = import_folder_to_project(project, str(external), copy=True)
+
+    copied = Path(project["project_root"]) / "data" / "original" / external.name
+    assert Path(rec["project_path"]) == copied
+    assert copied.is_dir()
+    assert (copied / "sample.txt").read_text(encoding="utf-8") == "hello"
+    registry = read_source_registry(project)["sources"]
+    assert any(source["project_path"] == str(copied) and source["copied_into_project"] is True for source in registry)

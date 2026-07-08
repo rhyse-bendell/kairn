@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QComboBox
 from kairn.core.storage import repositories as repo
-from ..widgets import set_table_rows
+from ..widgets import set_table_rows,page_header
 class ArtifactsTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state
-        l=QVBoxLayout(self); r=QHBoxLayout(); self.kind=QComboBox(); self.kind.currentTextChanged.connect(self.refresh)
+        l=QVBoxLayout(self); l.addWidget(page_header('Artifacts / Catalog','Inspect discovered files and artifact metadata.','Refresh')); r=QHBoxLayout(); self.kind=QComboBox(); self.kind.currentTextChanged.connect(self.refresh)
         b=QPushButton('Refresh'); b.clicked.connect(self.refresh); r.addWidget(self.kind); r.addWidget(b); l.addLayout(r)
         self.a=QTableWidget(); self.e=QTableWidget(); self.a.itemSelectionChanged.connect(self.events_for_selected); l.addWidget(self.a); l.addWidget(self.e)
     def refresh(self):

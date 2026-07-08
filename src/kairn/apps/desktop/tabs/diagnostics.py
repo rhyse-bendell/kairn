@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTextEdit,QTableWidget
 from kairn.core.storage import repositories as repo
 from kairn.core.maintenance.rebuild_participants import rebuild
-from ..widgets import set_table_rows
+from ..widgets import set_table_rows,page_header
 class DiagnosticsTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state
-        l=QVBoxLayout(self); r=QHBoxLayout()
+        l=QVBoxLayout(self); l.addWidget(page_header('Diagnostics / Warnings','Check project health, warnings, and repair utilities.','Run Diagnostics')); r=QHBoxLayout()
         for txt,fn in [('Run Diagnostics',self.diag),('Rebuild Participants',self.rb),('Fix Changelog Timestamps',self.fix),('Refresh Warnings',self.warns)]:
             b=QPushButton(txt); b.clicked.connect(fn); r.addWidget(b)
         l.addLayout(r); self.out=QTextEdit(); self.w=QTableWidget(); l.addWidget(self.out); l.addWidget(self.w)
