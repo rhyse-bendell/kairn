@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDir
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -45,7 +45,7 @@ class ProjectOverview(QWidget):
         self.parent_tab = parent_tab
         self.selected_project_path: str | None = None
         self.model = QFileSystemModel(self)
-        self.model.setFilter(Qt.AllEntries | Qt.NoDotAndDotDot)
+        self.model.setFilter(QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
 
         layout = QVBoxLayout(self)
         top = QSplitter(Qt.Horizontal)

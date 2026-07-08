@@ -27,6 +27,8 @@ def test_project_tab_imports_and_empty_state(monkeypatch):
     from kairn.apps.desktop.tabs.project import ProjectTab
     tab = ProjectTab(AppState(), QTextEdit())
     assert tab.switch_to_subview("Overview") is True
+    assert tab.overview.model is not None
+    assert tab.overview.tree is not None
     tab.refresh()
     app.processEvents()
 
@@ -50,3 +52,11 @@ def test_replay_tab_instantiates(monkeypatch):
     tab = ReplayTab(AppState(), QTextEdit())
     assert hasattr(tab, "timeline")
     app.processEvents()
+
+
+def test_qdir_filter_enum_compatibility():
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import QDir
+
+    flags = QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot
+    assert flags is not None
