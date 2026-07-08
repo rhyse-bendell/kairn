@@ -30,6 +30,12 @@ class SourcesTab(QWidget):
         return True
     def _project_descriptor(self):
         return {'project_root': self.state.active_project_root, 'manifest_path': self.state.active_project_manifest_path, 'db_path': self.state.db_path}
+    def _dialog_start_dir(self):
+        from pathlib import Path
+        if self.state.has_active_project():
+            original = Path(self.state.active_project_root) / 'data' / 'original'
+            return str(original if original.exists() else Path(self.state.active_project_root))
+        return getattr(self.state, 'last_import_dir', None) or self.state.project_home
     def _register_selected(self, path):
         if not self._require_project():
             return
@@ -44,10 +50,10 @@ class SourcesTab(QWidget):
         rec = register_project_source(self._project_descriptor(), path, copy_into_project=(choice == QMessageBox.Yes))
         append_log(self.log, f"Registered source {rec['source_id']}")
     def select(self):
-        d=QFileDialog.getExistingDirectory(self,'Select root folder')
+        d=QFileDialog.getExistingDirectory(self,'Select root folder', self._dialog_start_dir())
         if d: self._register_selected(d); self.state.active_root_path=d; self.selected_source=d; append_log(self.log,f'Selected root {d}')
     def select_file(self):
-        f=QFileDialog.getOpenFileName(self,'Select workshop source','','Workshop sources (*.zip *.db *.sqlite *.sqlite3 *.csv *.txt *.html *.docx *.pptx);;All Files (*)')[0]
+        f=QFileDialog.getOpenFileName(self,'Select workshop source',self._dialog_start_dir(),'Workshop sources (*.zip *.db *.sqlite *.sqlite3 *.csv *.txt *.html *.docx *.pptx);;All Files (*)')[0]
         if f: self._register_selected(f); self.selected_source=f; append_log(self.log,f'Selected file {f}')
     def inspect_selected(self):
         if not self._require_project(): return

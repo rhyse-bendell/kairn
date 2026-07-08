@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from kairn.apps.desktop.state import AppState
-from kairn.core.projects import create_project, create_project_run, list_projects, load_project, register_project_source
+from kairn.core.projects import create_project, create_project_run, import_file_to_project, list_projects, load_project, read_source_registry, register_project_source
 from kairn.core.projects.manifest import load_project_manifest
 from kairn.core.projects.paths import get_default_kairn_home, safe_project_slug
 from kairn.core.storage import repositories as repo
@@ -60,6 +60,9 @@ def test_register_project_source_link_and_copy(tmp_path):
     manifest = load_project_manifest(project["manifest_path"])
     assert len(registry["sources"]) == 2
     assert len(manifest["sources"]) == 2
+    imported = import_file_to_project(project, str(src), copy=True, metadata={"detection": {"confidence": "high"}})
+    assert Path(imported["project_path"]).exists()
+    assert read_source_registry(project)["sources"]
 
 
 def test_create_project_run_updates_manifest(tmp_path):

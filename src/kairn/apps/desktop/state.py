@@ -39,6 +39,10 @@ class AppState:
     project_home: str = field(default_factory=lambda: str(get_default_kairn_home()))
     source_registry_path: str | None = None
     participant_map_path: str | None = None
+    last_import_dir: str | None = None
+    selected_project_path: str | None = None
+    selected_project_file: str | None = None
+    project_subpaths: dict | None = None
 
     def __post_init__(self) -> None:
         workspace = Path(self.workspace_dir)
@@ -63,6 +67,8 @@ class AppState:
         self.project_home = str(root.parent)
         self.source_registry_path = str(root / "settings" / "source_registry.json")
         self.participant_map_path = str(root / "settings" / "participant_map.json")
+        self.last_import_dir = str(root / "data" / "original")
+        self.project_subpaths = project.get("subpaths")
         self.db_path = project.get("db_path") or str(root / "kairn.db")
         self.workspace_dir = str(root)
         self.snapshots_dir = str(root / "data" / "staging" / "snapshots")
@@ -79,6 +85,7 @@ class AppState:
         self.active_project_id = self.active_project_name = self.active_project_root = None
         self.active_project_manifest_path = self.active_project_settings_path = None
         self.source_registry_path = self.participant_map_path = None
+        self.last_import_dir = self.selected_project_path = self.selected_project_file = None
         self.active_collaboration_id = self.active_collection_id = None
         self.last_run_id = None
 
@@ -88,7 +95,7 @@ class AppState:
     def project_display_summary(self) -> dict:
         if not self.has_active_project():
             return {"loaded": False, "project_home": self.project_home, "next_step": "Start or load a project to begin."}
-        return {"loaded": True, "name": self.active_project_name, "project_root": self.active_project_root, "profile": self.active_profile, "db_path": self.db_path, "active_collaboration_id": self.active_collaboration_id, "active_run_id": self.last_run_id, "next_step": "Open Sources to add data."}
+        return {"loaded": True, "name": self.active_project_name, "project_root": self.active_project_root, "profile": self.active_profile, "db_path": self.db_path, "active_collaboration_id": self.active_collaboration_id, "active_run_id": self.last_run_id, "next_step": "Open Project to add or validate data."}
 
     def set_active_run_paths(self, paths: dict) -> None:
         self.active_run_dir = paths.get("run_dir")

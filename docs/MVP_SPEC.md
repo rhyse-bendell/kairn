@@ -126,3 +126,15 @@ Project -> Collaboration -> Collection -> Artifacts/Events/Deltas -> Runs/Output
 A project lives under the user project home, normally `Documents/Kairn`, and contains a manifest (`kairn_project.json`), a project-specific SQLite database (`kairn.db`), source data folders, parsed stream folders, run folders, exports, logs, and settings registries. The manifest records the active profile, active collaboration, optional active collection/run, settings, and registered sources.
 
 Project settings live under `settings/`, source links and copies are tracked in `source_registry.json`, copied sources go to `data/original/`, extracted archives go to `data/extracted/`, parsed stream products go under `parsed/`, and run-scoped outputs go under `runs/<run_id>/`.
+
+## Desktop GUI workflow structure
+
+Kairn's desktop GUI is organized around five top-level workflow tabs:
+
+- **Dashboard**: start a new project, load an existing project, open project files, and review the current project summary.
+- **Project**: the project hub for the project explorer, import/link source actions, source registry summary, Sources / Intake, Artifacts / Catalog, Parsed Data, Agents, Categories / Metadata, and Diagnostics / Warnings.
+- **Replay**: event playback, filters, contribution summaries, TLDraw event details, and the former Timeline / Sessions tools for timeline tables and visualizations.
+- **Analysis**: metrics, indicators, participation/activity summaries, and trace-based interpretation notes.
+- **Exports**: data products, reports, replay/diagnostics packages, run outputs, and generated file access.
+
+The former top-level Sources, Agents, Artifacts, Categories, Process Data, and Diagnostics functionality remains available inside **Project**. The former Timeline functionality remains available inside **Replay**.
