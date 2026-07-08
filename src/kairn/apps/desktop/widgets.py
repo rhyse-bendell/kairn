@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFrame, QGroupBox, QLabel, QMessageBox, QPushButton, QTableWidgetItem, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QGroupBox, QLabel, QMessageBox, QPushButton, QTableWidgetItem, QVBoxLayout, QWidget, QHBoxLayout
 
 
 def append_log(log_widget, message: str) -> None:
@@ -65,6 +65,72 @@ def landing_button(text: str) -> QPushButton:
 
 
 
+
+def primary_cta_button(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setMinimumHeight(50)
+    button.setCursor(Qt.PointingHandCursor)
+    font = button.font(); font.setBold(True); font.setPointSize(max(font.pointSize() + 2, 12)); button.setFont(font)
+    button.setStyleSheet("""
+        QPushButton { background-color: #2563eb; color: white; border: 1px solid #1d4ed8;
+            border-radius: 12px; padding: 12px 20px; font-weight: 800; }
+        QPushButton:hover { background-color: #1d4ed8; }
+        QPushButton:pressed { background-color: #1e40af; }
+        QPushButton:disabled { background-color: #9ca3af; border-color: #9ca3af; }
+    """)
+    return button
+
+
+def secondary_button(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setMinimumHeight(34)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setStyleSheet("""
+        QPushButton { background-color: #f9fafb; color: #111827; border: 1px solid #d1d5db;
+            border-radius: 8px; padding: 7px 12px; }
+        QPushButton:hover { background-color: #f3f4f6; }
+    """)
+    return button
+
+
+def workflow_step_label(number: int, title: str, active: bool = False, complete: bool = False) -> QWidget:
+    frame = QFrame(); layout = QHBoxLayout(frame); layout.setContentsMargins(8, 6, 8, 6); layout.setSpacing(6)
+    state = "ACTIVE" if active else "DONE" if complete else "NEXT"
+    badge = QLabel(str(number)); badge.setAlignment(Qt.AlignCenter); badge.setFixedSize(24, 24)
+    label = QLabel(f"{title} · {state}")
+    color = '#2563eb' if active else '#047857' if complete else '#6b7280'
+    bg = '#eff6ff' if active else '#ecfdf5' if complete else '#f9fafb'
+    frame.setStyleSheet(f"QFrame {{ background: {bg}; border: 1px solid {color}; border-radius: 10px; }} QLabel {{ color: #111827; font-weight: 600; }}")
+    badge.setStyleSheet(f"background: {color}; color: white; border-radius: 12px; font-weight: 800;")
+    layout.addWidget(badge); layout.addWidget(label)
+    return frame
+
+
+def workflow_card(title: str, description: str, button_text: str | None = None) -> QWidget:
+    box = QGroupBox(title)
+    box.setStyleSheet("QGroupBox { border: 1px solid #d1d5db; border-radius: 12px; margin-top: 10px; padding: 10px; font-weight: 700; background: #ffffff; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }")
+    layout = QVBoxLayout(box)
+    layout.addWidget(muted_help_label(description))
+    if button_text:
+        layout.addWidget(secondary_button(button_text))
+    return box
+
+
+def status_badge(text: str, kind: str) -> QLabel:
+    colors = {
+        'copied': ('#ecfdf5', '#047857'), 'linked': ('#eff6ff', '#1d4ed8'), 'ready': ('#ecfdf5', '#047857'),
+        'warning': ('#fffbeb', '#b45309'), 'empty': ('#f3f4f6', '#4b5563'),
+    }
+    bg, fg = colors.get(kind, colors['empty'])
+    label = QLabel(text); label.setStyleSheet(f"background: {bg}; color: {fg}; border: 1px solid {fg}; border-radius: 9px; padding: 2px 8px; font-size: 11px; font-weight: 800;")
+    return label
+
+
+def selected_item_panel(title: str, path: str | None, details: str | None = None) -> QGroupBox:
+    box = QGroupBox(title); layout = QVBoxLayout(box)
+    layout.addWidget(muted_help_label(details or (path or 'Select a file or folder in the Project Explorer to see available actions.')))
+    return box
+
 def muted_help_label(text: str) -> QLabel:
     label = QLabel(text)
     label.setWordWrap(True)
@@ -73,24 +139,10 @@ def muted_help_label(text: str) -> QLabel:
 
 
 def primary_action_button(text: str) -> QPushButton:
-    button = QPushButton(text)
-    button.setMinimumHeight(44)
-    button.setCursor(Qt.PointingHandCursor)
-    font = button.font()
-    font.setBold(True)
-    font.setPointSize(max(font.pointSize() + 1, 11))
-    button.setFont(font)
-    button.setStyleSheet("QPushButton { padding: 10px 16px; border-radius: 6px; font-weight: 700; }")
-    return button
-
+    return primary_cta_button(text)
 
 def secondary_action_button(text: str) -> QPushButton:
-    button = QPushButton(text)
-    button.setMinimumHeight(30)
-    button.setCursor(Qt.PointingHandCursor)
-    button.setStyleSheet("QPushButton { padding: 6px 10px; }")
-    return button
-
+    return secondary_button(text)
 
 def page_header(title: str, description: str, primary_action_text: str | None = None) -> QWidget:
     frame = QFrame()

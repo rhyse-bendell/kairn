@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFileSystemModel,
     QFrame,
     QGroupBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (
 from kairn.core.projects import import_file_to_project, import_folder_to_project, open_project_path, read_source_registry, register_project_source
 from kairn.core.sources import detect_compatible_source
 from kairn.core.workshop.intake import inspect_workshop_path
-from ..widgets import append_log, muted_help_label, open_path, page_header, primary_action_button, secondary_action_button, section_header, set_table_rows, show_info
+from ..widgets import append_log, muted_help_label, open_path, page_header, primary_cta_button, primary_action_button, secondary_button, secondary_action_button, section_header, set_table_rows, show_info, status_badge, workflow_card, workflow_step_label
 from .agents import AgentsTab
 from .artifacts import ArtifactsTab
 from .categories import CategoriesTab
@@ -52,10 +53,12 @@ class ProjectOverview(QWidget):
         layout = QVBoxLayout(self)
         self.header = page_header("Project Hub", "Manage the active Kairn project, import source files into the project workspace, inspect registered sources, and jump to the main workflows.", "Import Data Into Project")
         layout.addWidget(self.header)
+        layout.addWidget(self._workflow_strip())
+        layout.addWidget(self._primary_import_card())
         self.next_step = muted_help_label("")
         layout.addWidget(self.next_step)
         actions = QHBoxLayout()
-        self.import_data_button = primary_action_button("Import Data Into Project")
+        self.import_data_button = primary_cta_button("Import Data Into Project")
         self.import_data_button.clicked.connect(self.import_data_into_project)
         actions.addWidget(self.import_data_button)
         for text, fn in [("Open Project Folder", self.open_project_folder), ("Refresh Project", self.refresh)]:
@@ -72,6 +75,7 @@ class ProjectOverview(QWidget):
         self.summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
         left_layout.addWidget(self._summary_box())
         left_layout.addWidget(self._explorer_box(), 1)
+        left_layout.addWidget(self._selected_item_box())
         left_layout.addWidget(self._import_box())
         top.addWidget(left)
 
@@ -86,6 +90,30 @@ class ProjectOverview(QWidget):
         top.addWidget(right)
         top.setSizes([520, 680])
         self.refresh()
+
+    def _workflow_strip(self):
+        box = QGroupBox("Workflow")
+        layout = QVBoxLayout(box)
+        layout.addWidget(muted_help_label("Suggested workflow: import data, inspect/parse it, review file history, replay the timeline, then analyze or export."))
+        self.workflow_row = QHBoxLayout(); self.workflow_steps = []
+        layout.addLayout(self.workflow_row)
+        self._render_workflow_steps(0)
+        return box
+
+    def _primary_import_card(self):
+        box = QGroupBox("Import Data Into Project")
+        box.setStyleSheet("QGroupBox { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 14px; margin-top: 10px; padding: 12px; font-weight: 800; } QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 6px; }")
+        layout = QVBoxLayout(box)
+        layout.addWidget(muted_help_label("Copy a folder or files into this Kairn project so they live under data/original and can be inspected, parsed, replayed, and exported."))
+        layout.addWidget(muted_help_label("Import: Copies selected data into <ProjectRoot>/data/original/.\nLink: Keeps files where they are and records the original path."))
+        row = QHBoxLayout()
+        self.import_folder_button = primary_cta_button("Import Folder")
+        self.import_files_button = primary_cta_button("Import File(s)")
+        self.link_external_button = secondary_button("Link External Source (does not copy)")
+        for button, fn in [(self.import_folder_button, self.import_folder), (self.import_files_button, self.import_files), (self.link_external_button, self.link_external_source)]:
+            button.clicked.connect(fn); row.addWidget(button); self.project_action_buttons.append(button)
+        layout.addLayout(row)
+        return box
 
     def _summary_box(self):
         box = QGroupBox("Current Project")
@@ -114,6 +142,18 @@ class ProjectOverview(QWidget):
         layout.addLayout(row)
         return box
 
+    def _selected_item_box(self):
+        box = QGroupBox("Selected Project Item")
+        layout = QVBoxLayout(box)
+        self.selected_item_details = muted_help_label("Select a file or folder in the Project Explorer to see available actions.")
+        layout.addWidget(self.selected_item_details)
+        self.selected_item_badge_row = QHBoxLayout(); layout.addLayout(self.selected_item_badge_row)
+        row = QHBoxLayout()
+        for text, fn in [("Inspect Source", self.inspect_selected_source), ("Show History", self.show_selected_history), ("Open", self.open_selected), ("Reveal in Explorer", self.reveal_selected), ("Copy Path", self.copy_selected)]:
+            button = secondary_action_button(text); button.clicked.connect(fn); row.addWidget(button); self.project_action_buttons.append(button)
+        layout.addLayout(row)
+        return box
+
     def _import_box(self):
         box = QGroupBox("Import / Link Data")
         layout = QVBoxLayout(box)
@@ -138,10 +178,21 @@ class ProjectOverview(QWidget):
         return box
 
     def _tiles_box(self):
-        box = QGroupBox("Workflow Tiles")
-        row = QHBoxLayout(box)
-        for name in ["Sources / Intake", "Artifacts / Catalog", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings", "Replay", "Analysis", "Exports"]:
-            button = QPushButton(name); button.clicked.connect(lambda _=False, n=name: self.parent_tab.navigate_tile(n)); row.addWidget(button)
+        box = QGroupBox("Workflow Cards")
+        grid = QGridLayout(box)
+        cards = [
+            ("Sources / Intake", "Inspect imported sources, extract archives, build catalogs, and parse known workshop files.", "Open Sources / Intake"),
+            ("Files & History", "Select a cataloged file or artifact and view its event history.", "Open Files & History"),
+            ("Parsed Data", "Inspect TLDraw, Drive, document, and unified event tables.", "Open Parsed Data"),
+            ("Replay", "Scrub through the parsed collaboration timeline.", "Open Replay"),
+            ("Analysis", "Compute descriptive metrics and trace-based indicators.", "Open Analysis"),
+            ("Exports", "Write data products, reports, timelines, and replay packages.", "Open Exports"),
+        ]
+        for i, (name, desc, button_text) in enumerate(cards):
+            card = workflow_card(name, desc, button_text)
+            btn = card.findChild(QPushButton)
+            if btn: btn.clicked.connect(lambda _=False, n=name: self.parent_tab.navigate_tile(n))
+            grid.addWidget(card, i // 2, i % 2)
         return box
 
     def _project(self):
@@ -177,7 +228,9 @@ class ProjectOverview(QWidget):
         self.tree.setRootIndex(QModelIndex())
         self.set_project_actions_enabled(False)
         self.inspect_text.setText("Inspect a selected source to see detection details.")
+        self.set_selected_project_path(None)
         self.refresh_registry()
+        self._update_workflow_steps(0)
 
     def refresh(self):
         if not self.state.has_active_project():
@@ -201,7 +254,15 @@ class ProjectOverview(QWidget):
         self.set_project_actions_enabled(True)
         self.project_files_label.setText(f"Project files:\n{root}")
         source_count = len(read_source_registry(self._project()).get("sources", []))
-        self.next_step.setText("Next step: " + ("Import a folder or file into this project." if source_count == 0 else "Inspect, parse, replay, analyze, or export project data."))
+        empty_checklist = ("No sources imported yet.\n\n"
+            "Start here:\n"
+            "1. Click Import Folder or Import File(s).\n"
+            "2. Confirm the item appears under data/original.\n"
+            "3. Open Sources / Intake to inspect and parse it.\n"
+            "4. Open Files & History to review artifact events.\n"
+            "5. Open Replay to inspect the timeline.")
+        self.next_step.setText(empty_checklist if source_count == 0 else "Registered sources found. Next: open Sources / Intake to inspect and parse them.")
+        self._update_workflow_steps(source_count)
         self.summary.setText("\n".join([
             f"Project name: {self.state.active_project_name}", f"Project root: {root}", f"Active profile: {self.state.active_profile}", f"Database path: {self.state.db_path}", f"Active collaboration id: {self._short(self.state.active_collaboration_id)}", f"Active run id: {self._short(self.state.last_run_id)}",
         ]))
@@ -212,7 +273,60 @@ class ProjectOverview(QWidget):
         return value[:8] if value else "—"
 
     def _selected_index(self, index):
-        path = self.model.filePath(index); self.selected_project_path = path; self.state.selected_project_path = path; self.state.selected_project_file = path if Path(path).is_file() else None
+        self.set_selected_project_path(self.model.filePath(index))
+
+    def set_selected_project_path(self, path: str | None) -> None:
+        self.selected_project_path = path
+        self.state.selected_project_path = path
+        self.state.selected_project_file = path if path and Path(path).is_file() else None
+        if not hasattr(self, "selected_item_details"):
+            return
+        if not path:
+            self.selected_item_details.setText("Select a file or folder in the Project Explorer to see available actions.")
+            return
+        p = Path(path); root = Path(self.state.active_project_root) if self.state.has_active_project() else None
+        rel = None
+        if root:
+            try: rel = p.relative_to(root)
+            except ValueError: rel = None
+        details = [f"Relative path: {rel if rel else 'outside project'}", f"Full path: {p}", f"Type: {'folder' if p.is_dir() else 'file'}"]
+        if rel and str(rel).startswith('data/original'):
+            details.append("Status: Imported project data")
+        if p.name in {"kairn_project.json", "kairn.db"}:
+            details.append("Status: Project infrastructure file")
+        self.selected_item_details.setText("\n".join(details))
+
+    def _render_workflow_steps(self, active: int, complete_until: int = 0) -> None:
+        while getattr(self, 'workflow_row', None) and self.workflow_row.count():
+            item = self.workflow_row.takeAt(0)
+            if item.widget(): item.widget().deleteLater()
+        self.workflow_steps = []
+        for number, title in [(1, "Import"), (2, "Inspect / Parse"), (3, "Review History"), (4, "Replay"), (5, "Analyze / Export")]:
+            step = workflow_step_label(number, title, active=(number == active), complete=(number <= complete_until))
+            self.workflow_steps.append(step); self.workflow_row.addWidget(step)
+
+    def _update_workflow_steps(self, source_count: int) -> None:
+        try:
+            from kairn.core.storage import repositories as repo
+            artifact_count = len(repo.list_artifacts(self.state.db_path, self.state.active_collection_id)) if self.state.has_active_project() else 0
+        except Exception:
+            artifact_count = 0
+        if not self.state.has_active_project(): self._render_workflow_steps(0); return
+        if source_count == 0: self._render_workflow_steps(1, 0); return
+        if artifact_count == 0: self._render_workflow_steps(2, 1); return
+        self._render_workflow_steps(3, 2)
+
+    def show_selected_history(self):
+        if not self.selected_project_path:
+            append_log(self.log, "Select a project file before opening Files & History."); return
+        matched = False
+        if hasattr(self.parent_tab, 'artifacts_tab') and hasattr(self.parent_tab.artifacts_tab, 'select_artifact_by_path'):
+            self.parent_tab.switch_to_subview("Files & History")
+            matched = self.parent_tab.artifacts_tab.select_artifact_by_path(self.selected_project_path)
+        else:
+            self.parent_tab.switch_to_subview("Files & History")
+        if not matched:
+            append_log(self.log, "Open Files & History and select the matching artifact after building the catalog.")
 
     def open_project_folder(self):
         if self._require_project(): open_path(self.state.active_project_root)
@@ -296,12 +410,12 @@ class ProjectOverview(QWidget):
         if self.state.has_active_project():
             for rec in read_source_registry(self._project()).get("sources", []):
                 det = (rec.get("metadata") or {}).get("detection") or {}
-                rows.append({"Source ID": rec.get("source_id"), "Type": rec.get("source_type") or det.get("source_type"), "Copied?": rec.get("copied_into_project"), "Original Path": rec.get("original_path"), "Project Path": rec.get("project_path"), "Added": rec.get("added_at"), "Detection Confidence": det.get("confidence")})
-        set_table_rows(self.registry_table, rows, ["Source ID", "Type", "Copied?", "Original Path", "Project Path", "Added", "Detection Confidence"])
+                rows.append({"Source ID": rec.get("source_id"), "Type": rec.get("source_type") or det.get("source_type"), "Status": "COPIED" if rec.get("copied_into_project") else "LINKED", "Original Path": rec.get("original_path"), "Project Path": rec.get("project_path"), "Added": rec.get("added_at"), "Confidence": det.get("confidence")})
+        set_table_rows(self.registry_table, rows, ["Source ID", "Type", "Status", "Original Path", "Project Path", "Added", "Confidence"])
 
 
 class ProjectTab(QWidget):
-    SUBVIEWS = ["Overview", "Sources / Intake", "Artifacts / Catalog", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings"]
+    SUBVIEWS = ["Overview", "Sources / Intake", "Files & History", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings"]
 
     def __init__(self, state, log, navigate_to=None):
         super().__init__(); self.state = state; self.log = log; self.navigate_to = navigate_to
@@ -312,7 +426,13 @@ class ProjectTab(QWidget):
         self.nav = QListWidget(); left_layout.addWidget(self.nav, 1)
         self.stack = QStackedWidget()
         self.overview = ProjectOverview(state, log, self)
-        widgets = [self.overview, SourcesTab(state, log), ArtifactsTab(state, log), ProcessDataTab(state, log), AgentsTab(state, log), CategoriesTab(state, log), DiagnosticsTab(state, log)]
+        self.sources_tab = SourcesTab(state, log)
+        self.artifacts_tab = ArtifactsTab(state, log)
+        self.process_data_tab = ProcessDataTab(state, log)
+        self.agents_tab = AgentsTab(state, log)
+        self.categories_tab = CategoriesTab(state, log)
+        self.diagnostics_tab = DiagnosticsTab(state, log)
+        widgets = [self.overview, self.sources_tab, self.artifacts_tab, self.process_data_tab, self.agents_tab, self.categories_tab, self.diagnostics_tab]
         for name, widget in zip(self.SUBVIEWS, widgets):
             item = QListWidgetItem(name); item.setToolTip(self._subview_tooltip(name)); self.nav.addItem(item); self.stack.addWidget(widget)
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex); self.nav.currentRowChanged.connect(lambda _i: self.refresh())
@@ -321,7 +441,7 @@ class ProjectTab(QWidget):
         self.refresh()
 
     def _subview_tooltip(self, name: str) -> str:
-        return {"Overview": "project files, imports, registry, workflow shortcuts", "Sources / Intake": "inspect sources, extract archives, build catalogs, parse known files", "Artifacts / Catalog": "inspect discovered files and artifact metadata", "Parsed Data": "inspect TLDraw, Drive, document, and unified event tables", "Agents": "review participants/operators/system agents", "Categories / Metadata": "manage labels and metadata", "Diagnostics / Warnings": "check health and repair issues"}.get(name, name)
+        return {"Overview": "project files, imports, registry, workflow shortcuts", "Sources / Intake": "inspect sources, extract archives, build catalogs, parse known files", "Files & History": "select cataloged files and review event histories", "Parsed Data": "inspect TLDraw, Drive, document, and unified event tables", "Agents": "review participants/operators/system agents", "Categories / Metadata": "manage labels and metadata", "Diagnostics / Warnings": "check health and repair issues"}.get(name, name)
 
     def refresh(self):
         if self.state.has_active_project(): self.mini.setText(f"Project: {self.state.active_project_name}\n{self.state.active_project_root}")
@@ -333,11 +453,13 @@ class ProjectTab(QWidget):
             current_refresh()
 
     def switch_to_subview(self, name: str) -> bool:
+        if name == "Artifacts / Catalog": name = "Files & History"
         if name in self.SUBVIEWS:
             self.nav.setCurrentRow(self.SUBVIEWS.index(name)); return True
         return False
 
     def navigate_tile(self, name: str) -> None:
+        if name == "Artifacts / Catalog": name = "Files & History"
         if name in self.SUBVIEWS:
             self.switch_to_subview(name); return
         if self.navigate_to and self.navigate_to(name): return
