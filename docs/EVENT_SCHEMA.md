@@ -77,3 +77,7 @@ Replay events are loaded from `unified_process_events` when available and otherw
 - Action context: action, object type, artifact stream, artifact reference, content text, summary.
 - Display fields: callout title and callout body.
 - TLDraw geometry when available: `x`, `y`, `width`, `height`, plus room/entity/source/arrow/binding details in metadata.
+
+## Project Manifest and Database Relationship
+
+Each user-facing Kairn project contains a `kairn_project.json` manifest and a project-local `kairn.db`. The manifest stores the absolute project root for convenience and normally stores the database path as the relative value `kairn.db`. Event, artifact, delta, collaboration, collection, and run records continue to live in SQLite; the manifest points the GUI and CLI at the active project database and records active collaboration/collection/run identifiers.

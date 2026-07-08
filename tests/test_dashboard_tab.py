@@ -31,8 +31,8 @@ def test_dashboard_tab_instantiates_offscreen_qapplication(tmp_path, monkeypatch
     assert tab.start_button.text() == "Start New Project"
     assert tab.load_button.text() == "Load Project"
     assert tab.open_button.text() == "Open Project Files"
-    assert tab.project_name.text() == "No project loaded"
-    assert tab.project_path.text() == "Workspace: kairn_workspace"
+    assert tab.project_name.text() == "No project loaded."
+    assert tab.project_path.text().startswith("Project home:")
     assert tab.next_step.text() == "Start or load a project to begin."
 
     title = tab.findChild(QLabel, "dashboardTitle")

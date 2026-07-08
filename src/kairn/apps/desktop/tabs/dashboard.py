@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from kairn.core.storage import repositories as repo
+from kairn.core.projects import create_project, load_project, list_projects
+from kairn.core.projects.paths import get_default_kairn_home
 from ..widgets import (
     append_log,
     dashboard_description_label,
@@ -52,14 +53,14 @@ class NewProjectDialog(QDialog):
 
 
 class LoadProjectDialog(QDialog):
-    def __init__(self, collaborations, parent=None):
+    def __init__(self, projects, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Load Project")
         layout = QVBoxLayout(self)
         self.collaborations = QComboBox()
-        for collab in collaborations:
-            label = collab.get("name") or "Untitled"
-            self.collaborations.addItem(label, collab)
+        for project in projects:
+            label = f"{project.get('name') or 'Untitled'} — {project.get('project_root')}"
+            self.collaborations.addItem(label, project)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -67,7 +68,7 @@ class LoadProjectDialog(QDialog):
         layout.addWidget(self.collaborations)
         layout.addWidget(buttons)
 
-    def selected_collaboration(self):
+    def selected_project(self):
         return self.collaborations.currentData()
 
 
@@ -149,62 +150,50 @@ class DashboardTab(QWidget):
     def _short_id(self, value: str | None) -> str:
         return value[:8] if value else ""
 
-    def _active_collaboration(self):
-        if not self.state.active_collaboration_id:
-            return None
-        return repo.get_collaboration(self.state.db_path, self.state.active_collaboration_id)
-
     def refresh_project_display(self):
-        collab = self._active_collaboration()
-        if not collab:
-            self.project_name.setText("No project loaded")
-            self.project_path.setText(f"Workspace: {Path(self.state.workspace_dir).name}")
-            self.project_collaboration.setText("")
+        summary = self.state.project_display_summary()
+        if not summary.get("loaded"):
+            self.project_name.setText("No project loaded.")
+            self.project_path.setText(f"Project home: {summary.get('project_home')}")
+            self.project_collaboration.setText("Start or load a project to begin.")
             self.project_run.setText("")
-            self.next_step.setText("Start or load a project to begin.")
+            self.next_step.setText(summary.get("next_step", "Start or load a project to begin."))
             return
-        self.project_name.setText(collab.get("name") or "Untitled")
-        workspace = collab.get("default_root_path") or self.state.active_root_path or self.state.workspace_dir
-        self.project_path.setText(f"Project folder: {workspace}")
-        self.project_collaboration.setText(f"Active collaboration: {self._short_id(collab.get('id'))}")
-        self.project_run.setText(f"Active run: {self._short_id(self.state.last_run_id)}" if self.state.last_run_id else "")
-        self.next_step.setText("Open Sources to add workshop files or folders.")
+        self.project_name.setText(f"Project: {summary.get('name')}")
+        self.project_path.setText(f"Location: {summary.get('project_root')}")
+        self.project_collaboration.setText(f"Profile: {summary.get('profile')} | Database: {summary.get('db_path')}")
+        rid = self._short_id(summary.get("active_run_id"))
+        self.project_run.setText(f"Active run: {rid}" if rid else "")
+        self.next_step.setText("Next step: Open Sources to add data.")
 
     def start_new_project(self):
         dialog = NewProjectDialog(self)
         if dialog.exec() != QDialog.Accepted:
             return
         name, description = dialog.values()
-        cid = repo.create_collaboration(self.state.db_path, name or "Untitled", description)
-        self.state.active_collaboration_id = cid
-        collab = repo.get_collaboration(self.state.db_path, cid)
-        self.state.active_collection_id = collab.get("active_collection_id") if collab else None
-        append_log(self.log, f"Created project {cid}")
+        project = create_project(name or "Untitled Project", description)
+        self.state.set_active_project(project)
+        append_log(self.log, f"Created project at {project['project_root']}")
         self.refresh_project_display()
 
     def load_project(self):
-        collaborations = repo.list_collaborations(self.state.db_path)
-        if not collaborations:
-            show_info(self, "No projects", "No projects have been created yet. Start a new project to begin.")
+        projects = list_projects()
+        if not projects:
+            home = get_default_kairn_home()
+            show_info(self, "No projects", f"No Kairn projects found in {home}. Create a new project first.")
             return
-        dialog = LoadProjectDialog(collaborations, self)
+        dialog = LoadProjectDialog(projects, self)
         if dialog.exec() != QDialog.Accepted:
             return
-        collab = dialog.selected_collaboration()
-        if not collab:
+        selected = dialog.selected_project()
+        if not selected:
             return
-        self.state.active_collaboration_id = collab.get("id")
-        self.state.active_collection_id = collab.get("active_collection_id")
-        default_root = collab.get("default_root_path")
-        if default_root:
-            self.state.active_root_path = default_root
-        append_log(self.log, f"Loaded project {self.state.active_collaboration_id}")
+        project = load_project(selected.get("manifest_path") or selected.get("project_root"))
+        self.state.set_active_project(project)
+        append_log(self.log, f"Loaded project at {project['project_root']}")
         self.refresh_project_display()
 
     def open_project_files(self):
-        collab = self._active_collaboration()
-        path = None
-        if collab:
-            path = collab.get("default_root_path") or self.state.active_root_path
-        open_path(path or self.state.workspace_dir)
-        append_log(self.log, f"Opened project files: {path or self.state.workspace_dir}")
+        path = self.state.active_project_root or self.state.project_home
+        open_path(path)
+        append_log(self.log, f"Opened project files: {path}")

@@ -114,3 +114,15 @@ The current MVP priority is reliable mining of the known workshop dataset, not b
 - Nested team archives such as `Team 2 [1poyK].zip` for safe inspection/extraction/cataloging.
 
 The desktop app Sources/Intake and Replay workflows call core backend services for detection, archive inspection, safe extraction, cataloging, parsing, unified event building, replay loading, and parsed-data export.
+
+## Kairn Projects
+
+A Kairn Project is the first-class local container for user-facing work. The hierarchy is:
+
+```text
+Project -> Collaboration -> Collection -> Artifacts/Events/Deltas -> Runs/Outputs
+```
+
+A project lives under the user project home, normally `Documents/Kairn`, and contains a manifest (`kairn_project.json`), a project-specific SQLite database (`kairn.db`), source data folders, parsed stream folders, run folders, exports, logs, and settings registries. The manifest records the active profile, active collaboration, optional active collection/run, settings, and registered sources.
+
+Project settings live under `settings/`, source links and copies are tracked in `source_registry.json`, copied sources go to `data/original/`, extracted archives go to `data/extracted/`, parsed stream products go under `parsed/`, and run-scoped outputs go under `runs/<run_id>/`.
