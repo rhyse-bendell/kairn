@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtWidgets import QMessageBox, QTableWidgetItem
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton, QTableWidgetItem
 
 
 def append_log(log_widget, message: str) -> None:
@@ -14,6 +16,52 @@ def append_log(log_widget, message: str) -> None:
 
 def clear_table(table) -> None:
     table.setRowCount(0)
+
+
+def dashboard_title_label(text: str) -> QLabel:
+    label = QLabel(text)
+    font = QFont()
+    font.setPointSize(34)
+    font.setBold(True)
+    label.setFont(font)
+    label.setStyleSheet("color: #111827;")
+    return label
+
+
+def dashboard_description_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setMaximumWidth(900)
+    label.setStyleSheet(
+        "font-size: 18px; line-height: 150%; color: #374151; padding-top: 4px; padding-bottom: 8px;"
+    )
+    return label
+
+
+def landing_button(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setMinimumSize(290, 60)
+    button.setCursor(Qt.PointingHandCursor)
+    button.setStyleSheet(
+        """
+        QPushButton {
+            background-color: #1f4ed8;
+            border: 1px solid #1d4ed8;
+            border-radius: 10px;
+            color: white;
+            font-size: 17px;
+            font-weight: 700;
+            padding: 14px 22px;
+        }
+        QPushButton:hover {
+            background-color: #1d45bf;
+        }
+        QPushButton:pressed {
+            background-color: #1e3a8a;
+        }
+        """
+    )
+    return button
 
 
 def set_table_rows(table, rows, columns) -> None:
