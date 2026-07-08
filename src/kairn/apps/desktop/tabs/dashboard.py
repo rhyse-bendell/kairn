@@ -151,6 +151,9 @@ class DashboardTab(QWidget):
     def _short_id(self, value: str | None) -> str:
         return value[:8] if value else ""
 
+    def refresh(self):
+        self.refresh_project_display()
+
     def refresh_project_display(self):
         summary = self.state.project_display_summary()
         if not summary.get("loaded"):
@@ -167,17 +170,21 @@ class DashboardTab(QWidget):
         self.project_run.setText(f"Active run: {rid}" if rid else "")
         self.next_step.setText("Next step: Open Project to add or validate data.")
 
+    def _activate_loaded_project(self, project: dict) -> None:
+        if self.on_project_loaded:
+            self.on_project_loaded(project)
+        else:
+            self.state.set_active_project(project)
+            self.refresh_project_display()
+
     def start_new_project(self):
         dialog = NewProjectDialog(self)
         if dialog.exec() != QDialog.Accepted:
             return
         name, description = dialog.values()
         project = create_project(name or "Untitled Project", description)
-        self.state.set_active_project(project)
         append_log(self.log, f"Created project at {project['project_root']}")
-        self.refresh_project_display()
-        if self.on_project_loaded:
-            self.on_project_loaded(project)
+        self._activate_loaded_project(project)
 
     def load_project(self):
         projects = list_projects()
@@ -192,11 +199,8 @@ class DashboardTab(QWidget):
         if not selected:
             return
         project = load_project(selected.get("manifest_path") or selected.get("project_root"))
-        self.state.set_active_project(project)
         append_log(self.log, f"Loaded project at {project['project_root']}")
-        self.refresh_project_display()
-        if self.on_project_loaded:
-            self.on_project_loaded(project)
+        self._activate_loaded_project(project)
 
     def open_project_files(self):
         path = self.state.active_project_root or self.state.project_home

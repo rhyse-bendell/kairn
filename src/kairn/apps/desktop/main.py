@@ -45,11 +45,17 @@ class KairnMainWindow(_BaseMainWindow):
         layout.addWidget(self.log)
         self.setCentralWidget(central)
 
-        self._add_tab(DashboardTab(self.state, self.log, on_project_loaded=lambda _project: self.switch_to_tab("Project")), "Dashboard")
-        self._add_tab(ProjectTab(self.state, self.log, navigate_to=self.switch_to_tab), "Project")
-        self._add_tab(ReplayTab(self.state, self.log), "Replay")
-        self._add_tab(AnalysisTab(self.state, self.log), "Analysis")
-        self._add_tab(ExportsTab(self.state, self.log), "Exports")
+        self.dashboard_tab = DashboardTab(self.state, self.log, on_project_loaded=self.activate_project)
+        self.project_tab = ProjectTab(self.state, self.log, navigate_to=self.switch_to_tab)
+        self.replay_tab = ReplayTab(self.state, self.log)
+        self.analysis_tab = AnalysisTab(self.state, self.log)
+        self.exports_tab = ExportsTab(self.state, self.log)
+
+        self._add_tab(self.dashboard_tab, "Dashboard")
+        self._add_tab(self.project_tab, "Project")
+        self._add_tab(self.replay_tab, "Replay")
+        self._add_tab(self.analysis_tab, "Analysis")
+        self._add_tab(self.exports_tab, "Exports")
         self.resize(1200, 800)
 
     def _add_tab(self, widget, name: str) -> None:
@@ -61,6 +67,30 @@ class KairnMainWindow(_BaseMainWindow):
             return False
         self.tabs.setCurrentIndex(index)
         return True
+
+    def activate_project(self, project: dict) -> None:
+        self.state.set_active_project(project)
+        self.refresh_project_aware_tabs()
+        self.switch_to_tab("Project")
+
+    def refresh_project_aware_tabs(self) -> None:
+        from .widgets import append_log
+
+        for tab in (self.dashboard_tab, self.project_tab, self.replay_tab, self.analysis_tab, self.exports_tab):
+            refresh = getattr(tab, "refresh", None)
+            if not callable(refresh):
+                continue
+            try:
+                refresh()
+            except Exception as exc:  # pragma: no cover - defensive GUI logging
+                append_log(self.log, f"Could not refresh {tab.__class__.__name__}: {exc}")
+                raise
+
+    def current_tab_name(self) -> str | None:
+        index = self.tabs.currentIndex()
+        if index < 0:
+            return None
+        return self.tabs.tabText(index)
 
     def tab_names(self) -> list[str]:
         return [self.tabs.tabText(i) for i in range(self.tabs.count())]

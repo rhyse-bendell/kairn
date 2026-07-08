@@ -60,3 +60,57 @@ def test_qdir_filter_enum_compatibility():
 
     flags = QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot
     assert flags is not None
+
+
+def test_activate_project_refreshes_project_tab(monkeypatch, tmp_path):
+    app = _qt_app(monkeypatch)
+    from kairn.apps.desktop.main import KairnMainWindow
+    from kairn.core.projects import create_project
+
+    monkeypatch.setenv("KAIRN_HOME", str(tmp_path))
+    window = KairnMainWindow()
+    project = create_project("Test Project", kairn_home=tmp_path)
+
+    window.activate_project(project)
+    app.processEvents()
+
+    assert window.state.has_active_project() is True
+    assert window.state.active_project_root == project["project_root"]
+    assert window.current_tab_name() == "Project"
+    assert project["name"] in window.project_tab.mini.text() or project["project_root"] in window.project_tab.mini.text()
+    assert project["project_root"] in window.project_tab.overview.summary.text()
+    assert window.project_tab.overview.tree.isEnabled() is True
+    root_index = window.project_tab.overview.tree.rootIndex()
+    assert window.project_tab.overview.model.filePath(root_index) == project["project_root"]
+
+
+def test_project_tab_empty_state_does_not_show_filesystem_root(monkeypatch):
+    app = _qt_app(monkeypatch)
+    from PySide6.QtWidgets import QTextEdit
+    from kairn.apps.desktop.tabs.project import ProjectTab
+
+    tab = ProjectTab(AppState(), QTextEdit())
+    tab.refresh()
+    app.processEvents()
+
+    assert "No project loaded" in tab.mini.text()
+    assert "No project loaded" in tab.overview.summary.text()
+    assert tab.overview.tree.isEnabled() is False or not tab.overview.tree.rootIndex().isValid()
+
+
+def test_dashboard_project_creation_uses_activation_callback(monkeypatch, tmp_path):
+    app = _qt_app(monkeypatch)
+    from kairn.apps.desktop.tabs.dashboard import DashboardTab
+    from PySide6.QtWidgets import QTextEdit
+
+    state = AppState()
+    called = []
+    tab = DashboardTab(state, QTextEdit(), on_project_loaded=called.append)
+    project_root = tmp_path / "callback-project"
+    project_root.mkdir()
+    project = {"project_root": str(project_root), "name": "Callback Project"}
+    tab._activate_loaded_project(project)
+
+    assert called == [project]
+    assert state.has_active_project() is False
+    app.processEvents()

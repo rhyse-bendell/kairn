@@ -148,7 +148,7 @@ kairn sources inspect "Team 1_changelog.txt"
 
 ## Projects
 
-Kairn projects are durable local containers for a collaboration and its analysis outputs. In the desktop app, use **Dashboard → Start New Project** to create a project, **Load Project** to activate an existing one, and **Open Project Files** to open the active project folder in the OS file browser.
+Kairn projects are durable local containers for a collaboration and its analysis outputs. In the desktop app, use **Dashboard → Start New Project** to create a project, **Load Project** to activate an existing one, and **Open Project Files** to open the active project folder in the OS file browser. After Dashboard creates or loads a project, the **Project** tab becomes the active project hub and the Project Explorer is rooted at that active project folder. If no project is loaded, the Project tab intentionally shows an empty state instead of browsing the full filesystem.
 
 By default, Kairn creates projects in:
 
