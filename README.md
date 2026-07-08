@@ -27,6 +27,19 @@ Basic local testing workflow:
 5. Run Metrics / Exports / Visualization.
 
 
+
+## Windows GUI launcher
+
+For easy local GUI testing on Windows:
+
+- Double-click `launch_kairn_gui.bat`
+- Or run from CMD/PowerShell:
+  ```powershell
+  .\launch_kairn_gui.bat
+  ```
+
+The launcher creates or reuses `.venv`, installs Kairn with GUI extras via `pip install -e ".[gui]"`, creates `kairn_workspace`, runs a lightweight import check, and launches `kairn-gui`.
+
 ## Local GUI Workflow
 1. `pip install -e ".[gui]"`
 2. `kairn-gui`
