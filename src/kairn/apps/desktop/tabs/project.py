@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QDir
+from PySide6.QtCore import Qt, QDir, QModelIndex
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -44,6 +44,7 @@ class ProjectOverview(QWidget):
         self.log = log
         self.parent_tab = parent_tab
         self.selected_project_path: str | None = None
+        self.project_action_buttons: list[QPushButton] = []
         self.model = QFileSystemModel(self)
         self.model.setFilter(QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
 
@@ -80,6 +81,7 @@ class ProjectOverview(QWidget):
         row = QHBoxLayout()
         for text, fn in [("Open Project Folder", self.open_project_folder), ("Refresh Project", self.refresh), ("Open Manifest", self.open_manifest), ("Open Database Location", self.open_database_location)]:
             button = QPushButton(text); button.clicked.connect(fn); row.addWidget(button)
+            if text != "Refresh Project": self.project_action_buttons.append(button)
         layout.addLayout(row)
         return box
 
@@ -93,6 +95,7 @@ class ProjectOverview(QWidget):
         row = QHBoxLayout()
         for text, fn in [("Open Selected", self.open_selected), ("Reveal Selected in Explorer", self.reveal_selected), ("Copy Selected Path", self.copy_selected), ("Refresh Explorer", self.refresh)]:
             button = QPushButton(text); button.clicked.connect(fn); row.addWidget(button)
+            if text != "Refresh Explorer": self.project_action_buttons.append(button)
         layout.addLayout(row)
         return box
 
@@ -100,7 +103,7 @@ class ProjectOverview(QWidget):
         box = QGroupBox("Import / Link Data")
         row = QHBoxLayout(box)
         for text, fn in [("Import File(s)", self.import_files), ("Import Folder", self.import_folder), ("Link External Source", self.link_external_source), ("Inspect Selected Source", self.inspect_selected_source)]:
-            button = QPushButton(text); button.clicked.connect(fn); row.addWidget(button)
+            button = QPushButton(text); button.clicked.connect(fn); row.addWidget(button); self.project_action_buttons.append(button)
         return box
 
     def _registry_box(self):
@@ -111,6 +114,7 @@ class ProjectOverview(QWidget):
         row = QHBoxLayout()
         for text, fn in [("Refresh Sources", self.refresh_registry), ("Inspect Selected Source", self.inspect_registry_selection), ("Open Source Location", self.open_registry_selection)]:
             button = QPushButton(text); button.clicked.connect(fn); row.addWidget(button)
+            if text != "Refresh Sources": self.project_action_buttons.append(button)
         layout.addLayout(row)
         return box
 
@@ -139,13 +143,39 @@ class ProjectOverview(QWidget):
         QMessageBox.information(self, "No project loaded", "No project loaded. Start or load a project from Dashboard.")
         return False
 
+    def set_project_actions_enabled(self, enabled: bool) -> None:
+        for button in self.project_action_buttons:
+            button.setEnabled(enabled)
+
+    def _show_empty_state(self) -> None:
+        self.selected_project_path = None
+        self.summary.setText("No project loaded. Start or load a project from Dashboard.\n\nProject files will appear here after you start or load a project.")
+        self.tree.setEnabled(False)
+        self.tree.setRootIndex(QModelIndex())
+        self.set_project_actions_enabled(False)
+        self.inspect_text.setText("Inspect a selected source to see detection details.")
+        self.refresh_registry()
+
     def refresh(self):
         if not self.state.has_active_project():
-            self.summary.setText("No project loaded. Start or load a project from Dashboard.")
-            self.tree.setRootIndex(self.model.index(""))
-            self.refresh_registry()
+            self._show_empty_state()
             return
         root = Path(self.state.active_project_root)
+        manifest = Path(self.state.active_project_manifest_path) if self.state.active_project_manifest_path else root / "kairn_project.json"
+        if not root.exists() or not root.is_dir() or not manifest.exists():
+            self.summary.setText("\n".join([
+                "Active project folder is missing or invalid.",
+                f"Project root: {root}",
+                f"Manifest: {manifest}",
+                "Reload or recreate the project from Dashboard.",
+            ]))
+            self.tree.setEnabled(False)
+            self.tree.setRootIndex(QModelIndex())
+            self.set_project_actions_enabled(False)
+            self.refresh_registry()
+            return
+        self.tree.setEnabled(True)
+        self.set_project_actions_enabled(True)
         self.summary.setText("\n".join([
             f"Project name: {self.state.active_project_name}", f"Project root: {root}", f"Active profile: {self.state.active_profile}", f"Database path: {self.state.db_path}", f"Active collaboration id: {self._short(self.state.active_collaboration_id)}", f"Active run id: {self._short(self.state.last_run_id)}",
         ]))
@@ -247,8 +277,12 @@ class ProjectTab(QWidget):
 
     def refresh(self):
         if self.state.has_active_project(): self.mini.setText(f"Project: {self.state.active_project_name}\n{self.state.active_project_root}")
-        else: self.mini.setText("No project loaded.\nUse Dashboard to start or load one.")
+        else: self.mini.setText("No project loaded.\nStart or load a project from Dashboard.")
         self.overview.refresh()
+        current = self.stack.currentWidget()
+        current_refresh = getattr(current, "refresh", None)
+        if current is not self.overview and callable(current_refresh):
+            current_refresh()
 
     def switch_to_subview(self, name: str) -> bool:
         if name in self.SUBVIEWS:
