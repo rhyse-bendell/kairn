@@ -21,6 +21,33 @@ def test_main_window_top_level_tabs(monkeypatch):
     app.processEvents()
 
 
+def test_main_window_applies_default_startup_mode(monkeypatch):
+    app = _qt_app(monkeypatch)
+    monkeypatch.delenv("KAIRN_WINDOW_MODE", raising=False)
+    from kairn.apps.desktop.main import KairnMainWindow
+
+    window = KairnMainWindow()
+    assert hasattr(window, "apply_startup_window_mode")
+    window.apply_startup_window_mode()
+    app.processEvents()
+
+    assert window.isMaximized() is True
+    assert window.isFullScreen() is False
+
+
+def test_main_window_supports_window_mode_override(monkeypatch):
+    app = _qt_app(monkeypatch)
+    monkeypatch.setenv("KAIRN_WINDOW_MODE", "windowed")
+    from kairn.apps.desktop.main import KairnMainWindow
+
+    window = KairnMainWindow()
+    window.apply_startup_window_mode()
+    app.processEvents()
+
+    assert window.isVisible() is True
+    assert window.isFullScreen() is False
+
+
 def test_project_tab_imports_and_empty_state(monkeypatch):
     app = _qt_app(monkeypatch)
     from PySide6.QtWidgets import QTextEdit

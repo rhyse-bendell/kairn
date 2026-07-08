@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 
 def _import_qt():
     try:
@@ -58,6 +60,30 @@ class KairnMainWindow(_BaseMainWindow):
         self._add_tab(self.exports_tab, "Exports")
         self.resize(1200, 800)
 
+    def apply_startup_window_mode(self) -> None:
+        """Show the desktop window using the configured startup mode."""
+        mode = os.environ.get("KAIRN_WINDOW_MODE", "maximized").strip().lower()
+        if mode == "fullscreen":
+            self.showFullScreen()
+            return
+        if mode == "windowed":
+            self._show_centered_windowed()
+            return
+        self.showMaximized()
+
+    def _show_centered_windowed(self) -> None:
+        QApplication = _import_qt()[0]
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(self.width(), available.width())
+            height = min(self.height(), available.height())
+            self.resize(width, height)
+            x = available.x() + max((available.width() - width) // 2, 0)
+            y = available.y() + max((available.height() - height) // 2, 0)
+            self.move(x, y)
+        self.show()
+
     def _add_tab(self, widget, name: str) -> None:
         self._tab_indexes[name] = self.tabs.addTab(widget, name)
 
@@ -100,7 +126,7 @@ def main():
     QApplication = _import_qt()[0]
     app = QApplication.instance() or QApplication([])
     window = KairnMainWindow()
-    window.show()
+    window.apply_startup_window_mode()
     app.exec()
 
 
