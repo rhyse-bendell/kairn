@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget
 from kairn.core.storage import repositories as repo
 from kairn.core.maintenance.rebuild_participants import rebuild
-from ..widgets import set_table_rows,append_log
+from ..widgets import set_table_rows,append_log,page_header
 class AgentsTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log
-        l=QVBoxLayout(self); r=QHBoxLayout();
+        l=QVBoxLayout(self); l.addWidget(page_header('Agents','Review participants, operators, and system agents found in project traces.','Rebuild Participants')); r=QHBoxLayout();
         b1=QPushButton('Rebuild Participants'); b1.clicked.connect(self.rebuild)
         b2=QPushButton('Refresh'); b2.clicked.connect(self.refresh)
         r.addWidget(b1); r.addWidget(b2); l.addLayout(r)

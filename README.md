@@ -210,3 +210,17 @@ Kairn's desktop GUI is organized around five top-level workflow tabs:
 - **Exports**: data products, reports, replay/diagnostics packages, run outputs, and generated file access.
 
 The former top-level Sources, Agents, Artifacts, Categories, Process Data, and Diagnostics functionality remains available inside **Project**. The former Timeline functionality remains available inside **Replay**.
+
+
+## Importing data into a project
+
+1. Use **Dashboard** to start a new project or load an existing Kairn project.
+2. Open **Project → Import Data Into Project** to choose whether to import a folder, import files, or link an external source.
+3. Imported folders and files are copied into the active project under:
+
+   ```text
+   <ProjectRoot>/data/original/
+   ```
+
+4. Linked sources are registered in the project source registry but remain outside the project at their original paths.
+5. After importing or linking data, use **Sources / Intake** to inspect sources, extract archives, build catalogs, or parse supported files.

@@ -5,17 +5,17 @@ from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTable
 from kairn.core.replay import load_replay_events,get_replay_summary
 from kairn.core.replay.summaries import event_density
 from kairn.core.sources import detect_compatible_source
-from ..widgets import set_table_rows,append_log
+from ..widgets import set_table_rows,append_log,page_header,primary_action_button,secondary_action_button
 from .timeline import TimelineTab
 class ReplayTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.events=[]; self.timer=QTimer(self); self.timer.timeout.connect(self.step_forward)
-        l=QVBoxLayout(self); top=QHBoxLayout()
+        l=QVBoxLayout(self); l.addWidget(page_header('Replay','Replay parsed collaboration events and inspect timeline/session activity.','Load Replay Events')); top=QHBoxLayout()
         self.source=QComboBox(); self.source.addItems(['All','unified','tldraw','drive','document','generic'])
         self.team=QLineEdit(); self.team.setPlaceholderText('Team filter')
         self.part=QLineEdit(); self.part.setPlaceholderText('Participant filter')
         for txt,fn in [('Select File or Folder',self.select_source),('Load Events',self.load),('Play',self.play),('Pause',self.pause),('Step Back',self.step_back),('Step Forward',self.step_forward)]:
-            b=QPushButton(txt); b.clicked.connect(fn); top.addWidget(b)
+            b=primary_action_button(txt) if txt == 'Load Events' else secondary_action_button(txt); b.clicked.connect(fn); top.addWidget(b)
         self.speed=QComboBox(); self.speed.addItems(['slow','normal','fast']); top.addWidget(QLabel('Source')); top.addWidget(self.source); top.addWidget(self.team); top.addWidget(self.part); top.addWidget(self.speed); l.addLayout(top)
         self.slider=QSlider(Qt.Horizontal); self.slider.valueChanged.connect(self.show_index); l.addWidget(self.slider)
         lab=QHBoxLayout(); self.ts=QLabel('Timestamp: —'); self.idx=QLabel('Event: 0/0'); lab.addWidget(self.ts); lab.addWidget(self.idx); l.addLayout(lab)

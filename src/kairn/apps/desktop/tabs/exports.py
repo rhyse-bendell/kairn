@@ -5,13 +5,13 @@ from kairn.core.export.jsonl import export_jsonl
 from kairn.core.export.csv import export_timeline_csv
 from kairn.core.export.workshop import export_workshop_data
 from ..workers import TaskWorker
-from ..widgets import set_table_rows,open_path,append_log
+from ..widgets import set_table_rows,open_path,append_log,page_header,primary_action_button,secondary_action_button
 class ExportsTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.files=[]
-        l=QVBoxLayout(self); r=QHBoxLayout()
+        l=QVBoxLayout(self); l.addWidget(page_header('Exports','Write project data products, replay packages, timelines, diagnostics, and analysis outputs.','Export Workshop Data Products')); r=QHBoxLayout()
         for txt,fn in [('Export Compiled JSON',self.comp),('Export JSONL',self.jsonl),('Export Timeline CSV',self.csv),('Export Workshop Data',self.workshop),('Open Output Folder',self.open)]:
-            b=QPushButton(txt); b.clicked.connect(fn); r.addWidget(b)
+            b=primary_action_button(txt) if txt == 'Export Workshop Data' else secondary_action_button(txt); b.clicked.connect(fn); r.addWidget(b)
         l.addLayout(r); self.t=QTableWidget(); l.addWidget(self.t)
     def _add(self,p): self.files.append({'path':p}); self.state.last_output_dir=self.state.outputs_dir; set_table_rows(self.t,self.files,['path']); append_log(self.log,p)
     def comp(self): p=str(Path(self.state.outputs_dir)/'compiled.json'); export_compiled(self.state.db_path,p); self._add(p)

@@ -4,11 +4,11 @@ from kairn.core.drive.activity_parser import parse_drive_activity_csv
 from kairn.core.documents.changelog_parser import parse_all_changelogs_under_root
 from kairn.core.process.unified_events import build_unified_process_events
 from kairn.core.process.snapshots import create_board_snapshots
-from ..widgets import set_table_rows,append_log
+from ..widgets import set_table_rows,append_log,page_header
 import sqlite3,json
 class ProcessDataTab(QWidget):
     def __init__(self,state,log):
-        super().__init__(); self.state=state; self.log=log; l=QVBoxLayout(self); r=QHBoxLayout()
+        super().__init__(); self.state=state; self.log=log; l=QVBoxLayout(self); l.addWidget(page_header('Parsed Data','Inspect TLDraw, Drive, document, and unified event tables.','Build Unified Process Events')); r=QHBoxLayout()
         for txt,fn in [('Inspect TLDraw DB',self.inspect),('Parse TLDraw Logs',self.parse_tldraw),('Parse Drive Activity',self.parse_drive),('Parse Document Changelogs',self.parse_docs),('Build Unified Process Events',self.unified),('Create Board Snapshots',self.snapshots),('Refresh Summary',self.refresh)]:
             b=QPushButton(txt); b.clicked.connect(fn); r.addWidget(b)
         l.addLayout(r); self.t=QTableWidget(); l.addWidget(self.t)

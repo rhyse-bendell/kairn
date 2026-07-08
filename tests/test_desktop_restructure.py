@@ -141,3 +141,27 @@ def test_dashboard_project_creation_uses_activation_callback(monkeypatch, tmp_pa
     assert called == [project]
     assert state.has_active_project() is False
     app.processEvents()
+
+
+def test_project_overview_has_prominent_import_action(monkeypatch):
+    app = _qt_app(monkeypatch)
+    from PySide6.QtWidgets import QTextEdit
+    from kairn.apps.desktop.tabs.project import ProjectTab
+
+    tab = ProjectTab(AppState(), QTextEdit())
+    assert hasattr(tab.overview, "import_data_into_project")
+    assert tab.overview.import_data_button.text() == "Import Data Into Project"
+    assert tab.overview.import_data_button.minimumHeight() >= 40
+    app.processEvents()
+
+
+def test_project_tab_subviews_still_exist(monkeypatch):
+    app = _qt_app(monkeypatch)
+    from PySide6.QtWidgets import QTextEdit
+    from kairn.apps.desktop.tabs.project import ProjectTab
+
+    tab = ProjectTab(AppState(), QTextEdit())
+    assert tab.SUBVIEWS == ["Overview", "Sources / Intake", "Artifacts / Catalog", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings"]
+    assert tab.nav.count() == len(tab.SUBVIEWS)
+    assert tab.nav.item(0).toolTip()
+    app.processEvents()
