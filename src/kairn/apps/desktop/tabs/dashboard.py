@@ -9,16 +9,23 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFrame,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from kairn.core.storage import repositories as repo
-from ..widgets import append_log, open_path, show_info
+from ..widgets import (
+    append_log,
+    dashboard_description_label,
+    dashboard_title_label,
+    landing_button,
+    open_path,
+    show_info,
+)
 
 
 class NewProjectDialog(QDialog):
@@ -71,39 +78,48 @@ class DashboardTab(QWidget):
         self.log = log
 
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignTop)
-        layout.setSpacing(18)
-        layout.setContentsMargins(36, 32, 36, 32)
+        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        layout.setSpacing(0)
+        layout.setContentsMargins(48, 48, 48, 28)
 
-        title = QLabel("Kairn")
+        content = QFrame()
+        content.setMaximumWidth(950)
+        content_layout = QVBoxLayout(content)
+        content_layout.setAlignment(Qt.AlignTop)
+        content_layout.setSpacing(24)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+
+        title = dashboard_title_label("Kairn")
         title.setObjectName("dashboardTitle")
-        title.setStyleSheet("font-size: 36px; font-weight: 700;")
-        subtitle = QLabel("Collaboration Observatory")
-        subtitle.setStyleSheet("font-size: 18px; color: #555;")
-        description = QLabel(
+        description = dashboard_description_label(
             "Kairn helps you turn workshop files, TLDraw logs, document changelogs, "
             "Drive activity, and other collaboration traces into replayable event timelines, "
             "artifact catalogs, and analysis-ready data products."
         )
-        description.setWordWrap(True)
-        description.setMaximumWidth(900)
 
         actions = QFrame()
-        action_layout = QVBoxLayout(actions)
-        action_layout.setContentsMargins(0, 0, 0, 0)
-        self.start_button = QPushButton("Start New Project")
-        self.load_button = QPushButton("Load Project")
-        self.open_button = QPushButton("Open Project Files")
+        action_layout = QHBoxLayout(actions)
+        action_layout.setContentsMargins(0, 10, 0, 4)
+        action_layout.setSpacing(18)
+        self.start_button = landing_button("Start New Project")
+        self.load_button = landing_button("Load Project")
+        self.open_button = landing_button("Open Project Files")
         for button in (self.start_button, self.load_button, self.open_button):
-            button.setMinimumHeight(42)
-            button.setMaximumWidth(320)
             action_layout.addWidget(button)
+        action_layout.addStretch(1)
         self.start_button.clicked.connect(self.start_new_project)
         self.load_button.clicked.connect(self.load_project)
         self.open_button.clicked.connect(self.open_project_files)
 
-        project_box = QGroupBox("Current project")
+        project_box = QGroupBox("Current Project")
+        project_box.setMaximumWidth(900)
+        project_box.setStyleSheet(
+            "QGroupBox { font-size: 16px; font-weight: 700; color: #1f2937; margin-top: 12px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; }"
+        )
         project_layout = QVBoxLayout(project_box)
+        project_layout.setContentsMargins(18, 22, 18, 18)
+        project_layout.setSpacing(8)
         self.project_name = QLabel()
         self.project_path = QLabel()
         self.project_collaboration = QLabel()
@@ -118,13 +134,15 @@ class DashboardTab(QWidget):
             self.next_step,
         ):
             widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            widget.setStyleSheet("font-size: 15px; color: #374151;")
             project_layout.addWidget(widget)
 
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
-        layout.addWidget(description)
-        layout.addWidget(actions)
-        layout.addWidget(project_box)
+        content_layout.addWidget(title)
+        content_layout.addWidget(description)
+        content_layout.addWidget(actions)
+        content_layout.addWidget(project_box)
+        content_layout.addStretch(1)
+        layout.addWidget(content)
         layout.addStretch(1)
         self.refresh_project_display()
 
@@ -139,8 +157,8 @@ class DashboardTab(QWidget):
     def refresh_project_display(self):
         collab = self._active_collaboration()
         if not collab:
-            self.project_name.setText("No project loaded.")
-            self.project_path.setText(f"Workspace: {Path(self.state.workspace_dir)}")
+            self.project_name.setText("No project loaded")
+            self.project_path.setText(f"Workspace: {Path(self.state.workspace_dir).name}")
             self.project_collaboration.setText("")
             self.project_run.setText("")
             self.next_step.setText("Start or load a project to begin.")
