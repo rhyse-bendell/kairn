@@ -20,11 +20,11 @@ kairn-gui
 ```
 
 Basic local testing workflow:
-1. Create collaboration.
-2. Select root folder.
-3. Run ingestion.
-4. Inspect Sources / Artifacts / Timeline.
-5. Run Metrics / Exports / Visualization.
+1. Use Dashboard as the home/project launcher to start or load a project and open the workspace folder.
+2. Use Sources for data intake: select files or folders, inspect detected sources, extract archives, build artifact catalogs, parse known sources, and run ingestion.
+3. Use Process Data for parsed-data inspection and process-table operations.
+4. Use Replay for timeline playback and temporal inspection.
+5. Use Diagnostics for health checks, counts, warnings, and maintenance actions.
 
 
 
@@ -43,12 +43,12 @@ The launcher creates or reuses `.venv`, installs Kairn with GUI extras via `pip 
 ## Local GUI Workflow
 1. `pip install -e ".[gui]"`
 2. `kairn-gui`
-3. Create or load a collaboration in Dashboard.
-4. Select source folder and run ingestion from Sources.
-5. Inspect Sources/Artifacts/Agents/Timeline tabs.
-6. Run Metrics + Activity Indicators in Analysis.
+3. Start or load a project from Dashboard, or open the workspace with Open Project Files.
+4. Select source files/folders, inspect sources, extract archives, build catalogs, parse known sources, and run ingestion from Sources.
+5. Inspect parsed-data tables and process operations in Process Data.
+6. Play back event timelines in Replay.
 7. Export compiled JSON, JSONL, compact and prompt chunks from Exports.
-8. Run Diagnostics and maintenance actions.
+8. Run health checks, counts, warnings, and maintenance actions in Diagnostics.
 
 ## Run-scoped outputs (MVP)
 
