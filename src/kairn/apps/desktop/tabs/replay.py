@@ -1,11 +1,12 @@
 from __future__ import annotations
 import json
 from PySide6.QtCore import QTimer,Qt
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QTextEdit,QComboBox,QLineEdit,QSlider,QLabel,QSplitter,QFileDialog
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QTextEdit,QComboBox,QLineEdit,QSlider,QLabel,QSplitter,QFileDialog,QGroupBox
 from kairn.core.replay import load_replay_events,get_replay_summary
 from kairn.core.replay.summaries import event_density
 from kairn.core.sources import detect_compatible_source
 from ..widgets import set_table_rows,append_log
+from .timeline import TimelineTab
 class ReplayTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.events=[]; self.timer=QTimer(self); self.timer.timeout.connect(self.step_forward)
@@ -22,12 +23,18 @@ class ReplayTab(QWidget):
         lower=QSplitter(Qt.Horizontal); self.callout=QTextEdit(); self.callout.setReadOnly(True); self.detect=QTextEdit(); self.detect.setReadOnly(True); lower.addWidget(self.callout)
         self.actor=QTableWidget(); self.src=QTableWidget(); self.action=QTableWidget(); self.obj=QTableWidget(); self.density=QTableWidget(); sums=QSplitter(Qt.Vertical)
         for w in [self.actor,self.src,self.action,self.obj,self.density]: sums.addWidget(w)
-        lower.addWidget(sums); lower.addWidget(self.detect); split.addWidget(lower); l.addWidget(split)
+        lower.addWidget(sums); lower.addWidget(self.detect); split.addWidget(lower)
+        timeline_box=QGroupBox('Timeline / Sessions'); timeline_layout=QVBoxLayout(timeline_box); self.timeline=TimelineTab(state,log); timeline_layout.addWidget(self.timeline); split.addWidget(timeline_box); l.addWidget(split)
         self._empty()
     def _empty(self):
         set_table_rows(self.table,[],['sequence_index','timestamp_utc','team_id','actor_label','source','action','object_type','artifact_ref','summary']); self.callout.setText('Load replay events to begin.')
+    def _dialog_start_dir(self):
+        from pathlib import Path
+        if self.state.has_active_project():
+            return str(Path(self.state.active_project_root) / 'data' / 'original')
+        return getattr(self.state, 'last_import_dir', None) or self.state.project_home
     def select_source(self):
-        p=QFileDialog.getOpenFileName(self,'Select compatible file','','All Files (*)')[0] or QFileDialog.getExistingDirectory(self,'Select compatible folder')
+        p=QFileDialog.getOpenFileName(self,'Select compatible file',self._dialog_start_dir(),'All Files (*)')[0] or QFileDialog.getExistingDirectory(self,'Select compatible folder',self._dialog_start_dir())
         if p:
             res=detect_compatible_source(p); self.detect.setText(json.dumps(res,indent=2)); append_log(self.log,'Source detection: '+json.dumps(res));
     def load(self):

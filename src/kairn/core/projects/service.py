@@ -124,12 +124,15 @@ def list_projects(kairn_home: str | Path | None = None) -> list[dict]:
     return sorted(out, key=lambda r: r.get("updated_at") or "", reverse=True)
 
 
-def register_project_source(project: dict, source_path: str, source_type: str | None = None, copy_into_project: bool | None = None, metadata: dict | None = None) -> dict:
+def register_project_source(project: dict, source_path: str, source_type: str | None = None, copy_into_project: bool | None = None, metadata: dict | None = None, project_path: str | None = None) -> dict:
     manifest = load_project_manifest(project.get("manifest_path") or project["project_root"])
     root = Path(manifest["project_root"]); src = Path(source_path).expanduser()
     copied = bool(manifest.get("settings", {}).get("copy_sources_into_project", False) if copy_into_project is None else copy_into_project)
+    project_path_value = str(project_path) if project_path else None
     rec = {"source_id": str(uuid.uuid4()), "original_path": str(src), "source_type": source_type, "added_at": _now(), "copied_into_project": copied, "metadata": metadata or {}}
-    if copied:
+    if project_path_value:
+        rec["project_path"] = project_path_value
+    if copied and not project_path_value:
         dest = root / "data" / "original" / src.name
         if src.is_dir():
             if dest.exists(): dest = dest.with_name(f"{dest.name}_{uuid.uuid4().hex[:6]}")
@@ -139,10 +142,59 @@ def register_project_source(project: dict, source_path: str, source_type: str | 
         rec["project_path"] = str(dest)
     registry_path = root / "settings" / "source_registry.json"
     registry = json.loads(registry_path.read_text(encoding="utf-8")) if registry_path.exists() else {"sources": []}
-    registry.setdefault("sources", []).append(rec)
+    existing = next((r for r in registry.setdefault("sources", []) if r.get("original_path") == rec.get("original_path") and r.get("project_path") == rec.get("project_path")), None)
+    if existing:
+        existing.update({k: v for k, v in rec.items() if k != "source_id"})
+        rec = existing
+    else:
+        registry["sources"].append(rec)
     registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
-    manifest.setdefault("sources", []).append(rec); save_project_manifest(manifest)
+    sources = manifest.setdefault("sources", [])
+    existing_manifest = next((r for r in sources if r.get("original_path") == rec.get("original_path") and r.get("project_path") == rec.get("project_path")), None)
+    if existing_manifest:
+        existing_manifest.update(rec)
+    else:
+        sources.append(rec)
+    save_project_manifest(manifest)
     return rec
+
+
+def read_source_registry(project: dict) -> dict:
+    manifest = load_project_manifest(project.get("manifest_path") or project["project_root"])
+    path = Path(manifest["project_root"]) / "settings" / "source_registry.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"sources": []}
+
+
+def get_project_subpaths(project: dict) -> dict[str, str]:
+    manifest = load_project_manifest(project.get("manifest_path") or project["project_root"])
+    return ensure_project_structure(manifest["project_root"])
+
+
+def import_file_to_project(project: dict, file_path: str, copy: bool = True, metadata: dict | None = None) -> dict:
+    if not copy:
+        return register_project_source(project, file_path, copy_into_project=False, metadata=metadata)
+    manifest = load_project_manifest(project.get("manifest_path") or project["project_root"])
+    root = Path(manifest["project_root"])
+    src = Path(file_path).expanduser()
+    dest = root / "data" / "original" / src.name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if src.resolve() != dest.resolve():
+        if dest.exists(): dest = dest.with_name(f"{dest.stem}_{uuid.uuid4().hex[:6]}{dest.suffix}")
+        shutil.copy2(src, dest)
+    return register_project_source(project, str(src), copy_into_project=True, metadata=metadata, project_path=str(dest))
+
+
+def import_folder_to_project(project: dict, folder_path: str, copy: bool = True, metadata: dict | None = None) -> dict:
+    if not copy:
+        return register_project_source(project, folder_path, copy_into_project=False, metadata=metadata)
+    manifest = load_project_manifest(project.get("manifest_path") or project["project_root"])
+    root = Path(manifest["project_root"])
+    src = Path(folder_path).expanduser()
+    dest = root / "data" / "original" / src.name
+    if src.resolve() != dest.resolve():
+        if dest.exists(): dest = dest.with_name(f"{dest.name}_{uuid.uuid4().hex[:6]}")
+        shutil.copytree(src, dest)
+    return register_project_source(project, str(src), copy_into_project=True, metadata=metadata, project_path=str(dest))
 
 
 def create_project_run(project: dict, label: str | None = None) -> dict:

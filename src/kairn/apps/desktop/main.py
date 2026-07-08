@@ -1,24 +1,78 @@
 from __future__ import annotations
 
-def main():
+
+def _import_qt():
     try:
-        from PySide6.QtWidgets import QApplication,QMainWindow,QWidget,QVBoxLayout,QTabWidget,QTextEdit
-    except Exception as e:
+        from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget, QTextEdit
+    except Exception as e:  # pragma: no cover
         raise RuntimeError('PySide6 not installed; install with pip install -e ".[gui]"') from e
-    from .state import AppState
-    from .tabs.dashboard import DashboardTab
-    from .tabs.sources import SourcesTab
-    from .tabs.agents import AgentsTab
-    from .tabs.artifacts import ArtifactsTab
-    from .tabs.timeline import TimelineTab
-    from .tabs.categories import CategoriesTab
-    from .tabs.analysis import AnalysisTab
-    from .tabs.process_data import ProcessDataTab
-    from .tabs.exports import ExportsTab
-    from .tabs.diagnostics import DiagnosticsTab
-    from .tabs.replay import ReplayTab
-    app=QApplication([]); w=QMainWindow(); w.setWindowTitle('Kairn — Collaboration Observatory')
-    c=QWidget(); l=QVBoxLayout(c); tabs=QTabWidget(); log=QTextEdit(); log.setReadOnly(True); log.setPlaceholderText('Status messages will appear here.'); log.setMaximumHeight(120); state=AppState()
-    tabs.addTab(DashboardTab(state,log),'Dashboard'); tabs.addTab(SourcesTab(state,log),'Sources'); tabs.addTab(ReplayTab(state,log),'Replay'); tabs.addTab(AgentsTab(state,log),'Agents'); tabs.addTab(ArtifactsTab(state,log),'Artifacts'); tabs.addTab(TimelineTab(state,log),'Timeline'); tabs.addTab(CategoriesTab(state,log),'Categories'); tabs.addTab(ProcessDataTab(state,log),'Process Data'); tabs.addTab(AnalysisTab(state,log),'Analysis'); tabs.addTab(ExportsTab(state,log),'Exports'); tabs.addTab(DiagnosticsTab(state,log),'Diagnostics')
-    l.addWidget(tabs); l.addWidget(log); w.setCentralWidget(c); w.resize(1200,800); w.show(); app.exec()
-if __name__=='__main__': main()
+    return QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget, QTextEdit
+
+
+try:
+    _BaseMainWindow = _import_qt()[1]
+except RuntimeError:  # pragma: no cover
+    _BaseMainWindow = object
+
+
+class KairnMainWindow(_BaseMainWindow):
+    """Main desktop shell organized around Kairn's workflow tabs."""
+
+    TOP_LEVEL_TABS = ["Dashboard", "Project", "Replay", "Analysis", "Exports"]
+
+    def __init__(self):
+        QApplication, _QMainWindow, QWidget, QVBoxLayout, QTabWidget, QTextEdit = _import_qt()
+        super().__init__()
+        from .state import AppState
+        from .tabs.analysis import AnalysisTab
+        from .tabs.dashboard import DashboardTab
+        from .tabs.exports import ExportsTab
+        from .tabs.project import ProjectTab
+        from .tabs.replay import ReplayTab
+
+        self.setWindowTitle('Kairn — Collaboration Observatory')
+        self.state = AppState()
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setPlaceholderText('Status messages will appear here.')
+        self.log.setMaximumHeight(120)
+        self.tabs = QTabWidget()
+        self._tab_indexes: dict[str, int] = {}
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.addWidget(self.tabs)
+        layout.addWidget(self.log)
+        self.setCentralWidget(central)
+
+        self._add_tab(DashboardTab(self.state, self.log, on_project_loaded=lambda _project: self.switch_to_tab("Project")), "Dashboard")
+        self._add_tab(ProjectTab(self.state, self.log, navigate_to=self.switch_to_tab), "Project")
+        self._add_tab(ReplayTab(self.state, self.log), "Replay")
+        self._add_tab(AnalysisTab(self.state, self.log), "Analysis")
+        self._add_tab(ExportsTab(self.state, self.log), "Exports")
+        self.resize(1200, 800)
+
+    def _add_tab(self, widget, name: str) -> None:
+        self._tab_indexes[name] = self.tabs.addTab(widget, name)
+
+    def switch_to_tab(self, name: str) -> bool:
+        index = self._tab_indexes.get(name)
+        if index is None:
+            return False
+        self.tabs.setCurrentIndex(index)
+        return True
+
+    def tab_names(self) -> list[str]:
+        return [self.tabs.tabText(i) for i in range(self.tabs.count())]
+
+
+def main():
+    QApplication = _import_qt()[0]
+    app = QApplication.instance() or QApplication([])
+    window = KairnMainWindow()
+    window.show()
+    app.exec()
+
+
+if __name__ == '__main__':
+    main()

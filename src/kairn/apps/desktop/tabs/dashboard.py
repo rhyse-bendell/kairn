@@ -73,10 +73,11 @@ class LoadProjectDialog(QDialog):
 
 
 class DashboardTab(QWidget):
-    def __init__(self, state, log):
+    def __init__(self, state, log, on_project_loaded=None):
         super().__init__()
         self.state = state
         self.log = log
+        self.on_project_loaded = on_project_loaded
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
@@ -164,7 +165,7 @@ class DashboardTab(QWidget):
         self.project_collaboration.setText(f"Profile: {summary.get('profile')} | Database: {summary.get('db_path')}")
         rid = self._short_id(summary.get("active_run_id"))
         self.project_run.setText(f"Active run: {rid}" if rid else "")
-        self.next_step.setText("Next step: Open Sources to add data.")
+        self.next_step.setText("Next step: Open Project to add or validate data.")
 
     def start_new_project(self):
         dialog = NewProjectDialog(self)
@@ -175,6 +176,8 @@ class DashboardTab(QWidget):
         self.state.set_active_project(project)
         append_log(self.log, f"Created project at {project['project_root']}")
         self.refresh_project_display()
+        if self.on_project_loaded:
+            self.on_project_loaded(project)
 
     def load_project(self):
         projects = list_projects()
@@ -192,6 +195,8 @@ class DashboardTab(QWidget):
         self.state.set_active_project(project)
         append_log(self.log, f"Loaded project at {project['project_root']}")
         self.refresh_project_display()
+        if self.on_project_loaded:
+            self.on_project_loaded(project)
 
     def open_project_files(self):
         path = self.state.active_project_root or self.state.project_home
