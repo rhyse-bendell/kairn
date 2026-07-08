@@ -151,6 +151,8 @@ def test_project_overview_has_prominent_import_action(monkeypatch):
     tab = ProjectTab(AppState(), QTextEdit())
     assert hasattr(tab.overview, "import_data_into_project")
     assert tab.overview.import_data_button.text() == "Import Data Into Project"
+    assert tab.overview.import_folder_button.text() == "Import Folder"
+    assert tab.overview.import_files_button.text() == "Import File(s)"
     assert tab.overview.import_data_button.minimumHeight() >= 40
     app.processEvents()
 
@@ -161,7 +163,41 @@ def test_project_tab_subviews_still_exist(monkeypatch):
     from kairn.apps.desktop.tabs.project import ProjectTab
 
     tab = ProjectTab(AppState(), QTextEdit())
-    assert tab.SUBVIEWS == ["Overview", "Sources / Intake", "Artifacts / Catalog", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings"]
+    assert "Files & History" in tab.SUBVIEWS
+    assert "Artifacts / Catalog" not in tab.SUBVIEWS
+    assert tab.SUBVIEWS == ["Overview", "Sources / Intake", "Files & History", "Parsed Data", "Agents", "Categories / Metadata", "Diagnostics / Warnings"]
     assert tab.nav.count() == len(tab.SUBVIEWS)
     assert tab.nav.item(0).toolTip()
+    app.processEvents()
+
+
+def test_project_overview_selected_item_panel(monkeypatch, tmp_path):
+    app = _qt_app(monkeypatch)
+    from PySide6.QtWidgets import QTextEdit, QPushButton
+    from kairn.apps.desktop.tabs.project import ProjectTab
+    from kairn.core.projects import create_project
+
+    project = create_project("Selected", kairn_home=tmp_path)
+    state = AppState()
+    state.activate_project(project)
+    tab = ProjectTab(state, QTextEdit())
+    dummy = tmp_path / "Selected" / "data" / "original" / "test.txt"
+    dummy.parent.mkdir(parents=True, exist_ok=True)
+    dummy.write_text("hello")
+    tab.overview.set_selected_project_path(str(dummy))
+
+    assert "data/original/test.txt" in tab.overview.selected_item_details.text()
+    texts = {button.text() for button in tab.overview.findChildren(QPushButton)}
+    assert "Inspect Source" in texts
+    assert "Show History" in texts
+    app.processEvents()
+
+
+def test_artifacts_tab_file_history_header(monkeypatch):
+    app = _qt_app(monkeypatch)
+    from PySide6.QtWidgets import QLabel, QTextEdit
+    from kairn.apps.desktop.tabs.artifacts import ArtifactsTab
+
+    tab = ArtifactsTab(AppState(), QTextEdit())
+    assert any(label.text() == "Files & History" for label in tab.findChildren(QLabel))
     app.processEvents()

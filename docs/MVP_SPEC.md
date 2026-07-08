@@ -132,7 +132,7 @@ Project settings live under `settings/`, source links and copies are tracked in 
 Kairn's desktop GUI is organized around five top-level workflow tabs:
 
 - **Dashboard**: start a new project, load an existing project, open project files, and review the current project summary.
-- **Project**: the project hub for the project explorer, import/link source actions, source registry summary, Sources / Intake, Artifacts / Catalog, Parsed Data, Agents, Categories / Metadata, and Diagnostics / Warnings.
+- **Project**: the project hub for the project explorer, import/link source actions, source registry summary, Sources / Intake, Files & History, Parsed Data, Agents, Categories / Metadata, and Diagnostics / Warnings.
 - **Replay**: event playback, filters, contribution summaries, TLDraw event details, and the former Timeline / Sessions tools for timeline tables and visualizations.
 - **Analysis**: metrics, indicators, participation/activity summaries, and trace-based interpretation notes.
 - **Exports**: data products, reports, replay/diagnostics packages, run outputs, and generated file access.
