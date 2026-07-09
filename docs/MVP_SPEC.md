@@ -138,3 +138,16 @@ Kairn's desktop GUI is organized around five top-level workflow tabs:
 - **Exports**: data products, reports, replay/diagnostics packages, run outputs, and generated file access.
 
 The former top-level Sources, Agents, Artifacts, Categories, Process Data, and Diagnostics functionality remains available inside **Project**. The former Timeline functionality remains available inside **Replay**.
+
+## Observatory Metrics Workflow
+
+Kairn includes a preliminary collaboration-observatory workflow for processed projects:
+
+1. Import data into a project.
+2. Process imported sources.
+3. Open **Analysis**.
+4. Compute **Observatory Metrics**.
+5. Review Data Origins, TLDraw, Drive, Documents, Case Study, and Caveats.
+6. Export the Observatory Metrics Package.
+
+The exported package is manuscript-ready Markdown plus CSV/JSON tables and chart-spec JSON files. Metrics are descriptive trace indicators. Activity counts are not performance or quality scores, absence of a trace is not absence of work, and transcript metrics require transcript/audio-derived inputs. Missing streams are represented as unavailable with caveats rather than causing computation failure.

@@ -21,6 +21,7 @@ from kairn.core.replay.export import export_replay_events_csv, export_replay_eve
 from kairn.core.projects import create_project, load_project, list_projects, register_project_source, create_project_run
 from kairn.core.projects.service import open_project_path
 from kairn.core.export.workshop import export_workshop_data
+from kairn.core.observatory import build_observatory_report, export_observatory_report, report_summary
 
 def main():
     p=argparse.ArgumentParser('kairn'); sp=p.add_subparsers(dest='cmd')
@@ -41,6 +42,7 @@ def main():
     proj=sp.add_parser('projects', help='Create, list, load, and manage local Kairn projects'); pjsp=proj.add_subparsers(dest='projects_type'); pc=pjsp.add_parser('create'); pc.add_argument('name'); pc.add_argument('--description',default=''); pc.add_argument('--home'); pc.add_argument('--profile',default='problem_framing_workshop'); pl=pjsp.add_parser('list'); pl.add_argument('--home'); psw=pjsp.add_parser('show'); psw.add_argument('project'); po=pjsp.add_parser('open'); po.add_argument('project'); prs=pjsp.add_parser('register-source'); prs.add_argument('project'); prs.add_argument('source_path'); prs.add_argument('--copy',action='store_true'); prs.add_argument('--source-type'); pnr=pjsp.add_parser('new-run'); pnr.add_argument('project'); pnr.add_argument('--label');
     srcp=sp.add_parser('sources'); srcsp=srcp.add_subparsers(dest='sources_type'); si=srcsp.add_parser('inspect'); si.add_argument('path')
     rep=sp.add_parser('replay'); repsp=rep.add_subparsers(dest='replay_type'); rs=repsp.add_parser('summary'); rs.add_argument('--db',default='kairn.db'); rs.add_argument('--collection-id'); rs.add_argument('--run-id'); re=repsp.add_parser('export'); re.add_argument('--db',default='kairn.db'); re.add_argument('--collection-id'); re.add_argument('--run-id'); re.add_argument('--out-dir',required=True)
+    obs=sp.add_parser('observatory'); obsp=obs.add_subparsers(dest='observatory_type'); obr=obsp.add_parser('report'); obr.add_argument('project'); obr.add_argument('--out'); obr.add_argument('--team'); obr.add_argument('--activity'); obr.add_argument('--bin-minutes',type=int,default=15); obr.add_argument('--no-csv',action='store_true'); obr.add_argument('--no-json',action='store_true'); obr.add_argument('--no-markdown',action='store_true')
     proc=sp.add_parser('process'); prsp=proc.add_subparsers(dest='process_type'); pbu=prsp.add_parser('build-unified'); pbu.add_argument('--db',default='kairn.db'); pbu.add_argument('--collection-id'); pbu.add_argument('--run-id'); psn=prsp.add_parser('snapshots'); psn.add_argument('--db',default='kairn.db'); psn.add_argument('--collection-id'); psn.add_argument('--run-id')
     sp.add_parser('diagnose'); mt=sp.add_parser('maintenance'); msp=mt.add_subparsers(dest='mtype'); msp.add_parser('fix-changelog-timestamps')
     a=p.parse_args()
@@ -73,6 +75,8 @@ def main():
     elif a.cmd=='replay' and a.replay_type=='summary': print(json.dumps(get_replay_summary(load_replay_events(a.db,a.collection_id,a.run_id)), indent=2))
     elif a.cmd=='replay' and a.replay_type=='export':
         ev=load_replay_events(a.db,a.collection_id,a.run_id); summ=get_replay_summary(ev); out=Path(a.out_dir); print(json.dumps({'csv':export_replay_events_csv(ev,out/'csv'/'replay_events.csv'),'json':export_replay_events_json(ev,out/'json'/'replay_events.json'),'summary':export_replay_summary_json(summ,out/'reports'/'replay_summary.json')}, indent=2))
+    elif a.cmd=='observatory' and a.observatory_type=='report':
+        pr=load_project(a.project); out=a.out or str(Path(pr.get('project_root','.') )/'runs'/'observatory_report'); report=build_observatory_report(pr, pr.get('db_path') or str(Path(pr.get('project_root','.'))/'kairn.db'), run_id=pr.get('active_run_id'), team=a.team, activity=a.activity, bin_minutes=a.bin_minutes); paths=export_observatory_report(report,out,include_csv=not a.no_csv,include_json=not a.no_json,include_markdown=not a.no_markdown); print(json.dumps({'out_dir':paths.get('out_dir'),'summary':report_summary(report)}, indent=2))
     elif a.cmd=='process' and a.process_type=='build-unified': print(json.dumps(build_unified_process_events(a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='process' and a.process_type=='snapshots': print(json.dumps(create_board_snapshots(a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='catalog' and a.catalog_type=='build':

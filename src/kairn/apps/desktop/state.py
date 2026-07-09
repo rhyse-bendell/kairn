@@ -43,6 +43,11 @@ class AppState:
     selected_project_path: str | None = None
     selected_project_file: str | None = None
     project_subpaths: dict | None = None
+    last_observatory_report: object | None = None
+    last_observatory_output_dir: str | None = None
+    last_observatory_tables: list | None = None
+    last_observatory_warnings: list | None = None
+    last_observatory_chart_specs: list | None = None
 
     def __post_init__(self) -> None:
         workspace = Path(self.workspace_dir)
