@@ -236,3 +236,24 @@ Import means Kairn copies data into the project. Link means Kairn tracks an exte
 
 4. Linked sources are registered in the project source registry but remain outside the project at their original paths.
 5. After importing or linking data, use **Sources / Intake** to inspect sources, extract archives, build catalogs, or parse supported files.
+
+## Observatory Metrics Workflow
+
+Kairn can compute and export an Observatory Metrics package from a processed project. The workflow is:
+
+1. Import data into a project.
+2. Process imported sources.
+3. Open **Analysis**.
+4. Compute **Observatory Metrics**.
+5. Review Data Origins, TLDraw, Drive, Documents, Case Study, Transcript Availability, and Caveats.
+6. Export the Observatory Metrics Package.
+
+CLI usage:
+
+```bash
+kairn observatory report PROJECT_PATH_OR_MANIFEST --team "Team 2" --activity "problem framing"
+```
+
+The package includes `kairn_observatory_report.md`, `output_table_inventory.csv`, `tables/*.csv`, `tables/*.json`, `charts/*.json`, and `report_manifest.json`.
+
+Observatory metrics are descriptive trace indicators only. Activity counts are not performance, quality, effort, creativity, or cognition scores. Transcript metrics require transcript/audio-derived inputs and are reported unavailable otherwise. Source streams can be absent; Kairn reports availability and caveats instead of failing.
