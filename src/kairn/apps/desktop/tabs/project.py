@@ -42,10 +42,123 @@ from .process_data import ProcessDataTab
 from .sources import SourcesTab
 
 
+def _canonical_source_path(value: str | None) -> str | None:
+    """Return a stable, case-insensitive identity for a source path."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = text.replace("\\", "/").rstrip("/\\")
+    if not text:
+        return None
+    try:
+        normalized = Path(text).expanduser().resolve(strict=False)
+        text = str(normalized)
+    except Exception:
+        text = str(Path(text).expanduser())
+    text = text.replace("\\", "/").rstrip("/\\")
+    return text.casefold() or None
+
+
+def _source_identity_key(rec: dict) -> str:
+    """Choose the duplicate-detection identity for a registry record."""
+    return (
+        _canonical_source_path(rec.get("original_path"))
+        or _canonical_source_path(rec.get("project_path"))
+        or str(rec.get("source_id") or "")
+    )
+
+
+def _processing_path_exists(rec: dict) -> bool:
+    """Return whether the path that would be processed exists on disk."""
+    path = rec.get("project_path") or rec.get("original_path")
+    if not path:
+        return False
+    try:
+        return Path(str(path)).expanduser().resolve(strict=False).exists()
+    except Exception:
+        return False
+
+
+def _prefer_source_record(existing: dict, candidate: dict) -> dict:
+    """Choose which duplicate record should be processed."""
+    existing_exists = _processing_path_exists(existing)
+    candidate_exists = _processing_path_exists(candidate)
+    if candidate_exists and not existing_exists:
+        return candidate
+    if existing_exists and not candidate_exists:
+        return existing
+
+    existing_project_exists = bool(existing.get("project_path")) and _processing_path_exists({"project_path": existing.get("project_path")})
+    candidate_project_exists = bool(candidate.get("project_path")) and _processing_path_exists({"project_path": candidate.get("project_path")})
+    existing_copied = bool(existing.get("copied_into_project")) and existing_project_exists
+    candidate_copied = bool(candidate.get("copied_into_project")) and candidate_project_exists
+    if candidate_copied and not existing_copied:
+        return candidate
+    return existing
+
+
+def _duplicate_reason_for_key(rec: dict) -> str:
+    if _canonical_source_path(rec.get("original_path")):
+        return "duplicate original_path"
+    if _canonical_source_path(rec.get("project_path")):
+        return "duplicate project_path"
+    return "duplicate source_id"
+
+
+def _dedupe_registered_sources(sources: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Return registry records to process and duplicate records skipped."""
+    groups: dict[str, list[dict]] = {}
+    order: list[str] = []
+    for idx, rec in enumerate(sources):
+        key = _source_identity_key(rec) or f"__source_record_{idx}"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(rec)
+
+    sources_to_process: list[dict] = []
+    skipped_duplicates: list[dict] = []
+    for key in order:
+        records = groups[key]
+        kept = records[0]
+        for candidate in records[1:]:
+            kept = _prefer_source_record(kept, candidate)
+        sources_to_process.append(kept)
+        kept_id = kept.get("source_id") or "unknown"
+        for rec in records:
+            if rec is kept:
+                continue
+            skipped_duplicates.append({
+                "source_id": rec.get("source_id"),
+                "original_path": rec.get("original_path"),
+                "project_path": rec.get("project_path"),
+                "duplicate_of_source_id": kept_id,
+                "duplicate_key": key,
+                "skipped_reason": _duplicate_reason_for_key(rec),
+            })
+    return sources_to_process, skipped_duplicates
+
+
 def process_registered_sources(project: dict, db_path: str, collection_id=None, run_id=None, profile=None, workspace_dir=None) -> dict:
-    """Process each source in the existing project source registry."""
-    sources = read_source_registry(project).get("sources", [])
-    result = {"sources_seen": len(sources), "sources_processed": 0, "warnings": []}
+    """Process each unique source in the existing project source registry."""
+    all_sources = read_source_registry(project).get("sources", [])
+    sources, skipped_duplicates = _dedupe_registered_sources(all_sources)
+    result = {
+        "sources_seen": len(all_sources),
+        "sources_considered": len(sources),
+        "sources_processed": 0,
+        "sources_skipped_duplicates": len(skipped_duplicates),
+        "skipped_sources": skipped_duplicates,
+        "warnings": [],
+    }
+    for skipped in skipped_duplicates:
+        result["warnings"].append(
+            "Skipped duplicate registered source "
+            f"{skipped.get('source_id') or 'unknown'} because it has the same original path as "
+            f"{skipped.get('duplicate_of_source_id') or 'unknown'}."
+        )
     current_collection_id = collection_id
     current_run_id = run_id
     output_dir = None
@@ -541,10 +654,15 @@ class ProjectOverview(QWidget):
         self.state.last_observatory_chart_specs = getattr(report, "charts", [])
         sources_processed = process_result.get("sources_processed", 0)
         sources_seen = process_result.get("sources_seen", 0)
+        skipped_duplicates = process_result.get("sources_skipped_duplicates", 0)
         append_log(self.log, f"Generated metrics package: {result.get('out_dir')}")
         append_log(self.log, f"Processed sources: {sources_processed}/{sources_seen}")
+        append_log(self.log, f"Skipped duplicate sources: {skipped_duplicates}")
         append_log(self.log, f"Tables: {len(self.state.last_observatory_tables)}")
         append_log(self.log, f"Warnings: {len(self.state.last_observatory_warnings)}")
+        if skipped_duplicates:
+            current_summary = self.metrics_summary.text()
+            self.metrics_summary.setText(f"{current_summary}\nSkipped duplicate sources: {skipped_duplicates}" if current_summary else f"Skipped duplicate sources: {skipped_duplicates}")
         self.refresh()
         parent_refresh = getattr(self.parent_tab, "refresh", None)
         if callable(parent_refresh):

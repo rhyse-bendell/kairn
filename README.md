@@ -22,7 +22,7 @@ kairn-gui
 Basic local testing workflow:
 1. Use Dashboard as the home/project launcher to start or load a project and open the workspace folder.
 2. Import Folder or Import File(s) from the Project Hub.
-3. Click Generate Metrics Package to process registered sources, compute observatory metrics, and export CSV/JSON/Markdown outputs.
+3. Click Generate Metrics Package to process registered sources, compute observatory metrics, and export CSV/JSON/Markdown outputs. If the same source is imported more than once, Generate Metrics Package skips duplicate registered sources based on their original path so repeated imports do not double-count events.
 4. Open Metrics Folder or View Metrics in Analysis.
 5. Advanced/manual processing controls remain available under Advanced source controls when you need to inspect or process one source manually.
 
