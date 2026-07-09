@@ -32,6 +32,7 @@ from kairn.core.projects import import_file_to_project, import_folder_to_project
 from kairn.core.sources import detect_compatible_source
 from kairn.core.workshop.intake import inspect_workshop_path, prepare_workshop_source
 from kairn.core.observatory import build_observatory_report, export_observatory_report
+from kairn.core.observatory.source_processing import discover_observatory_sources, _process_discovered_sources
 from ..workers import TaskWorker
 from ..widgets import append_log, muted_help_label, open_path, page_header, primary_cta_button, primary_action_button, secondary_button, secondary_action_button, section_header, set_table_rows, show_info, status_badge, workflow_card, workflow_step_label
 from .agents import AgentsTab
@@ -168,29 +169,29 @@ def process_registered_sources(project: dict, db_path: str, collection_id=None, 
     current_collection_id = collection_id
     current_run_id = run_id
     output_dir = None
+    all_discovered = []
     for rec in sources:
         path = _processing_path(rec)
         if not path:
             result["warnings"].append(f"Source {rec.get('source_id') or 'unknown'} has no path; skipped.")
             continue
-        out = prepare_workshop_source(
-            path,
-            db_path,
-            workspace_dir or project.get("project_root") or ".",
-            collection_id=current_collection_id,
-            run_id=current_run_id,
-            profile=profile or "problem_framing_workshop",
-            extract=False,
-        )
-        current_collection_id = out.get("collection_id") or current_collection_id
-        current_run_id = out.get("run_id") or current_run_id
-        output_paths = out.get("output_paths") or {}
-        output_dir = output_paths.get("out_dir") or output_paths.get("workshop_intake_summary_json")
-        if output_dir and Path(output_dir).is_file():
-            output_dir = str(Path(output_dir).parent)
+        discovered = discover_observatory_sources(path)
+        all_discovered.extend(discovered)
+        summary, route_warnings = _process_discovered_sources(discovered, db_path)
+        out = {}
+        try:
+            out = prepare_workshop_source(path, db_path, workspace_dir or project.get("project_root") or ".", collection_id=current_collection_id, run_id=current_run_id, profile=profile or "problem_framing_workshop", extract=False)
+            current_collection_id = out.get("collection_id") or current_collection_id
+            current_run_id = out.get("run_id") or current_run_id
+            output_paths = out.get("output_paths") or {}
+            output_dir = output_paths.get("out_dir") or output_paths.get("workshop_intake_summary_json")
+            if output_dir and Path(output_dir).is_file(): output_dir = str(Path(output_dir).parent)
+        except Exception as exc:
+            route_warnings.append(f"Legacy workshop intake skipped for {path}: {exc}")
         result["sources_processed"] += 1
-        result.setdefault("source_results", []).append(out)
-        result["warnings"].extend(out.get("warnings") or [])
+        result.setdefault("source_results", []).append({"registered_source": rec, "discovered_sources": discovered, "processing_summary": summary, "legacy_intake": out})
+        result["warnings"].extend(route_warnings + (out.get("warnings") or [] if isinstance(out, dict) else []))
+    result["discovered_sources"] = all_discovered
     result["collection_id"] = current_collection_id
     result["run_id"] = current_run_id
     if output_dir:

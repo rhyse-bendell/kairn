@@ -259,3 +259,21 @@ kairn observatory report PROJECT_PATH_OR_MANIFEST --team "Team 2" --activity "pr
 The package includes `kairn_observatory_report.md`, `output_table_inventory.csv`, `tables/*.csv`, `tables/*.json`, `charts/*.json`, and `report_manifest.json`.
 
 Observatory metrics are descriptive trace indicators only. Activity counts are not performance, quality, effort, creativity, or cognition scores. Transcript metrics require transcript/audio-derived inputs and are reported unavailable otherwise. Source streams can be absent; Kairn reports availability and caveats instead of failing.
+
+## Understanding a folder with Kairn
+
+Kairn can help you inspect an imported project/workshop folder and produce descriptive metrics packages without adding LLM calls or running a web server.
+
+1. Create or load a Kairn project.
+2. Use **Import Folder**, **Import File(s)**, or supported initial data selection during project creation to add workshop data.
+3. Click **Generate Metrics Package** in Project Hub.
+4. Click **Open Metrics Folder**.
+5. Review these outputs first:
+   - `kairn_observatory_report.md`
+   - `visualizations/trace_ecology_overview.html`
+   - `visualizations/event_density_by_stream.html`
+   - `tables/normalized_observatory_events.csv`
+   - `tables/source_processing_summary.csv`
+
+Kairn recursively recognizes Google Drive `dailyLog.csv` files, document changelog files, TLDraw log databases, SRT transcripts, audio artifacts, and common document/export artifacts. The generated indicators are descriptive traces for understanding available digital exhaust; they are not performance scores or direct measures of cognition. Some streams may be unavailable or only partially parsed, and Kairn reports those caveats in diagnostics and the Markdown report.
+
