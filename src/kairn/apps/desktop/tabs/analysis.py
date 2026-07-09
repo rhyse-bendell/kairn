@@ -15,7 +15,7 @@ class AnalysisTab(QWidget):
         o=QHBoxLayout(); self.obs_team=QLineEdit(); self.obs_team.setPlaceholderText('Team filter (optional)'); self.obs_activity=QLineEdit(); self.obs_activity.setPlaceholderText('Activity filter (optional)'); self.obs_bin=QComboBox(); self.obs_bin.addItems(['15','30','60'])
         cb=primary_action_button('Compute Observatory Metrics'); cb.clicked.connect(self.compute_observatory); eb=secondary_action_button('Export Observatory Report'); eb.clicked.connect(self.export_observatory); ob=secondary_action_button('Open Metrics Folder'); ob.clicked.connect(self.open_observatory)
         for w in [self.obs_team,self.obs_activity,self.obs_bin,cb,eb,ob]: o.addWidget(w)
-        l.addLayout(o); self.obs_summary=QLabel('No observatory metrics computed.'); l.addWidget(self.obs_summary); self.obs_tables=QListWidget(); self.obs_tables.currentRowChanged.connect(self.show_observatory_table); l.addWidget(self.obs_tables); self.obs_detail=QTableWidget(); l.addWidget(self.obs_detail); self.obs_notes=QTextEdit(); self.obs_notes.setReadOnly(True); l.addWidget(self.obs_notes)
+        l.addLayout(o); self.obs_summary=QLabel('No observatory metrics computed.'); l.addWidget(self.obs_summary); l.addWidget(QLabel('Visualizations')); self.obs_visualizations=QListWidget(); self.obs_visualizations.itemDoubleClicked.connect(self.open_selected_visualization); l.addWidget(self.obs_visualizations); self.obs_tables=QListWidget(); self.obs_tables.currentRowChanged.connect(self.show_observatory_table); l.addWidget(self.obs_tables); self.obs_detail=QTableWidget(); l.addWidget(self.obs_detail); self.obs_notes=QTextEdit(); self.obs_notes.setReadOnly(True); l.addWidget(self.obs_notes)
         self.load_observatory_report_from_state()
     def run(self):
         out=str(Path(self.state.outputs_dir)/'metrics.csv')
@@ -42,6 +42,12 @@ class AnalysisTab(QWidget):
             return
         out = f" | Output: {self.state.last_observatory_output_dir}" if self.state.last_observatory_output_dir else ""
         self.obs_summary.setText(f"Tables: {len(report.tables)} | Warnings: {len(report.warnings)} | Streams available: {sum(1 for t in report.tables if t.rows)}{out}")
+        self.obs_visualizations.clear()
+        out_dir = Path(self.state.last_observatory_output_dir) if self.state.last_observatory_output_dir else None
+        labels = [('Trace ecology overview','trace_ecology_overview.html'),('Event density by stream','event_density_by_stream.html'),('Actor activity by stream','actor_activity_by_stream.html'),('Artifact history overview','artifact_history_overview.html'),('Document change activity','document_change_activity.html'),('TLDraw concept map activity','tldraw_concept_map_activity.html'),('Transcript activity','transcript_activity.html'),('Team case study','team_case_study.html')]
+        for label, filename in labels:
+            item_label = label if out_dir and (out_dir/'visualizations'/filename).exists() else f'{label} (export to open)'
+            self.obs_visualizations.addItem(item_label)
         self.obs_tables.clear(); [self.obs_tables.addItem(t.table_id) for t in report.tables]
         self.obs_notes.setPlainText('\n'.join((report.caveats or []) + (report.warnings or [])))
         if report.tables:
@@ -52,6 +58,15 @@ class AnalysisTab(QWidget):
     def show_observatory_table(self, idx):
         if idx < 0 or not self.state.last_observatory_report: return
         t=self.state.last_observatory_report.tables[idx]; set_table_rows(self.obs_detail, t.rows, t.columns)
+    def open_selected_visualization(self, item):
+        out_dir = Path(self.state.last_observatory_output_dir) if self.state.last_observatory_output_dir else None
+        if not out_dir: return
+        names=['trace_ecology_overview.html','event_density_by_stream.html','actor_activity_by_stream.html','artifact_history_overview.html','document_change_activity.html','tldraw_concept_map_activity.html','transcript_activity.html','team_case_study.html']
+        row=self.obs_visualizations.currentRow()
+        if 0 <= row < len(names):
+            p=out_dir/'visualizations'/names[row]
+            if p.exists(): open_path(str(p))
+
     def export_observatory(self):
         if not self.state.last_observatory_report: self.compute_observatory(); return
         out=str(Path(self.state.active_run_reports_dir or self.state.outputs_dir)/'observatory_metrics')
