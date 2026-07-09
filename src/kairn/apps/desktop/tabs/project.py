@@ -61,18 +61,24 @@ def _canonical_source_path(value: str | None) -> str | None:
     return text.casefold() or None
 
 
-def _source_identity_key(rec: dict) -> str:
+def _source_identity_key(rec: dict, fallback_index: int | None = None) -> str:
     """Choose the duplicate-detection identity for a registry record."""
     return (
         _canonical_source_path(rec.get("original_path"))
         or _canonical_source_path(rec.get("project_path"))
         or str(rec.get("source_id") or "")
+        or f"malformed-source-{fallback_index}"
     )
+
+
+def _processing_path(rec: dict) -> str | None:
+    """Return the path that should be processed for a registry record."""
+    return rec.get("project_path") or rec.get("original_path") or None
 
 
 def _processing_path_exists(rec: dict) -> bool:
     """Return whether the path that would be processed exists on disk."""
-    path = rec.get("project_path") or rec.get("original_path")
+    path = _processing_path(rec)
     if not path:
         return False
     try:
@@ -112,7 +118,7 @@ def _dedupe_registered_sources(sources: list[dict]) -> tuple[list[dict], list[di
     groups: dict[str, list[dict]] = {}
     order: list[str] = []
     for idx, rec in enumerate(sources):
-        key = _source_identity_key(rec) or f"__source_record_{idx}"
+        key = _source_identity_key(rec, idx)
         if key not in groups:
             groups[key] = []
             order.append(key)
@@ -156,14 +162,14 @@ def process_registered_sources(project: dict, db_path: str, collection_id=None, 
     for skipped in skipped_duplicates:
         result["warnings"].append(
             "Skipped duplicate registered source "
-            f"{skipped.get('source_id') or 'unknown'} because it has the same original path as "
+            f"{skipped.get('source_id') or 'unknown'} because it has the same source identity as "
             f"{skipped.get('duplicate_of_source_id') or 'unknown'}."
         )
     current_collection_id = collection_id
     current_run_id = run_id
     output_dir = None
     for rec in sources:
-        path = rec.get("project_path") or rec.get("original_path")
+        path = _processing_path(rec)
         if not path:
             result["warnings"].append(f"Source {rec.get('source_id') or 'unknown'} has no path; skipped.")
             continue
