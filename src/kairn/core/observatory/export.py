@@ -1,5 +1,5 @@
 from pathlib import Path
-import json, csv
+import json, csv, html
 from dataclasses import asdict
 from .schemas import table_to_dataframe, report_summary
 
@@ -16,16 +16,87 @@ VISUALIZATIONS = [
 
 def _html_table(table, limit=25):
     if not table: return '<p>No matching table was generated.</p>'
-    head=''.join(f'<th>{c}</th>' for c in table.columns)
-    rows=''.join('<tr>'+''.join(f'<td>{str(r.get(c,""))[:300]}</td>' for c in table.columns)+'</tr>' for r in table.rows[:limit])
-    return f'<h2>{table.table_id}</h2><p>{table.description} See <code>tables/{table.table_id}.csv</code>.</p><table><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table>'
+    head=''.join(f'<th>{html.escape(str(c))}</th>' for c in table.columns)
+    rows=''.join('<tr>'+''.join(f'<td>{html.escape(str(r.get(c,""))[:300])}</td>' for c in table.columns)+'</tr>' for r in table.rows[:limit])
+    return f'<h2>{html.escape(table.table_id)}</h2><p>{html.escape(table.description)} See <code>tables/{html.escape(table.table_id)}.csv</code>.</p><table><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table>'
+
+def _num(v):
+    try: return float(v or 0)
+    except Exception: return 0.0
+
+def _bar_chart(title, rows, label_col, value_col, limit=12):
+    data=sorted(rows or [], key=lambda r: _num(r.get(value_col)), reverse=True)[:limit]
+    if not data: return f'<section><h2>{html.escape(title)}</h2><p>No chartable rows.</p></section>'
+    maxv=max([_num(r.get(value_col)) for r in data] or [1]) or 1
+    items=[]
+    for r in data:
+        label=html.escape(str(r.get(label_col,'[blank]'))); val=_num(r.get(value_col)); pct=max(2, val/maxv*100)
+        items.append(f'<div class="barrow"><span>{label}</span><div class="bar"><i style="width:{pct:.1f}%"></i></div><b>{val:g}</b></div>')
+    return f'<section><h2>{html.escape(title)}</h2>{"".join(items)}</section>'
+
+def _status_cards(table):
+    if not table or not table.rows: return '<p>No stream status rows.</p>'
+    cards=[]
+    for r in table.rows:
+        status=str(r.get('status') or ('available' if r.get('available')=='True' else 'not_detected'))
+        cards.append(f'<div class="card"><h3>{html.escape(str(r.get("source_stream")))}</h3><p class="status">{html.escape(status)}</p><p>{html.escape(str(r.get("records",0)))} records from {html.escape(str(r.get("detected_sources",0)))} detected source(s).</p></div>')
+    return '<div class="cards">'+''.join(cards)+'</div>'
+
+def _timeline(title, table, time_col='timestamp_utc', label_col='source_stream', limit=80):
+    rows=[r for r in (table.rows if table else []) if r.get(time_col) or r.get('start_seconds')]
+    rows=rows[:limit]
+    if not rows: return f'<section><h2>{html.escape(title)}</h2><p>No timeline rows.</p></section>'
+    lis=[]
+    for r in rows:
+        ts=r.get(time_col) or f"+{r.get('start_seconds')}s"
+        lis.append(f'<li><time>{html.escape(str(ts))}</time><strong>{html.escape(str(r.get(label_col,"")))}</strong> {html.escape(str(r.get("actor", r.get("actor_label", ""))))}: {html.escape(str(r.get("action", "")))} <span>{html.escape(str(r.get("text_snippet", ""))[:120])}</span></li>')
+    return f'<section><h2>{html.escape(title)}</h2><ol class="timeline">{"".join(lis)}</ol></section>'
+
+def _matrix(title, rows, x_col, y_col, value_col='event_count', limit=80):
+    rows=(rows or [])[:limit]
+    if not rows: return f'<section><h2>{html.escape(title)}</h2><p>No matrix rows.</p></section>'
+    xs=sorted({str(r.get(x_col,'')) for r in rows}); ys=sorted({str(r.get(y_col,'')) for r in rows})
+    vals={(str(r.get(x_col,'')),str(r.get(y_col,''))):_num(r.get(value_col, r.get('count'))) for r in rows}
+    maxv=max(vals.values() or [1]) or 1
+    head='<tr><th></th>'+''.join(f'<th>{html.escape(x)}</th>' for x in xs)+'</tr>'
+    body=''
+    for y in ys:
+        body+='<tr><th>'+html.escape(y)+'</th>'
+        for x in xs:
+            v=vals.get((x,y),0); alpha=0.08+0.82*(v/maxv) if v else 0
+            body+=f'<td style="background:rgba(37,99,235,{alpha:.2f})">{v:g}</td>'
+        body+='</tr>'
+    return f'<section><h2>{html.escape(title)}</h2><table class="matrix"><thead>{head}</thead><tbody>{body}</tbody></table></section>'
+
+def _visual_sections(title, by):
+    if title=='Trace Ecology Overview':
+        return [_status_cards(by.get('stream_record_counts')), _bar_chart('Files by extension', (by.get('folder_inventory_summary') or {}).rows if by.get('folder_inventory_summary') else [], 'extension', 'file_count')]
+    if title=='Event Density by Stream':
+        parts=[]
+        for tid,label in [('drive_events_by_hour','Drive events by hour'),('tldraw_event_density','TLDraw events by time bin'),('transcript_turns_by_time_bin','Transcript turns by time bin')]:
+            t=by.get(tid); parts.append(_bar_chart(label, t.rows if t else [], t.columns[0] if t and t.columns else 'bin_start_utc', t.columns[-1] if t and t.columns else 'event_count'))
+        return parts
+    if title=='Actor Activity by Stream':
+        return [_bar_chart('Drive actor activity', (by.get('drive_user_action_counts') or {}).rows if by.get('drive_user_action_counts') else [], 'actor_id_or_user','event_count'), _bar_chart('Document actor activity', (by.get('document_changelog_actor_counts') or {}).rows if by.get('document_changelog_actor_counts') else [], 'actor_label','total_events'), _bar_chart('TLDraw actor activity', (by.get('tldraw_actor_summary') or {}).rows if by.get('tldraw_actor_summary') else [], 'actor_label','event_count'), _bar_chart('Transcript speaker activity', (by.get('transcript_speaker_summary') or {}).rows if by.get('transcript_speaker_summary') else [], 'speaker','turn_count')]
+    if title=='Artifact History Overview':
+        return [_bar_chart('Most active artifacts', (by.get('artifact_history_summary') or {}).rows if by.get('artifact_history_summary') else [], 'artifact_name','event_count')]
+    if title=='Team Case Study':
+        return [_timeline('Cross-stream event timeline', by.get('normalized_observatory_events'))]
+    if title=='TLDraw Concept Map Activity':
+        t=by.get('tldraw_by_team_action'); return [_matrix('TLDraw team/action matrix', t.rows if t else [], 'action','team_or_room')]
+    if title=='Transcript Activity':
+        return [_bar_chart('Transcript speakers', (by.get('transcript_speaker_summary') or {}).rows if by.get('transcript_speaker_summary') else [], 'speaker','turn_count'), _timeline('Representative transcript snippets', by.get('transcript_representative_snippets'), 'start_seconds', 'speaker')]
+    if title=='Document Change Activity':
+        return [_bar_chart('Document changelog actors', (by.get('document_changelog_actor_counts') or {}).rows if by.get('document_changelog_actor_counts') else [], 'actor_label','total_events'), _matrix('Document activity/action matrix', (by.get('document_changelog_activity_action_counts') or {}).rows if by.get('document_changelog_activity_action_counts') else [], 'action','activity_keyword')]
+    return []
 
 def _write_visualizations(report, out):
     viz=Path(out)/'visualizations'; viz.mkdir(parents=True,exist_ok=True); paths={}; by={t.table_id:t for t in report.tables}
-    css='body{font-family:system-ui,Segoe UI,sans-serif;max-width:1180px;margin:2rem auto;padding:0 1rem;line-height:1.4}table{border-collapse:collapse;width:100%;margin:1rem 0}th,td{border:1px solid #ddd;padding:.35rem;vertical-align:top}th{background:#f1f5f9}.caveat{background:#fff7ed;border:1px solid #fed7aa;padding:1rem}code{background:#f8fafc;padding:.1rem .25rem}'
+    css='body{font-family:system-ui,Segoe UI,sans-serif;max-width:1180px;margin:2rem auto;padding:0 1rem;line-height:1.4;color:#0f172a}table{border-collapse:collapse;width:100%;margin:1rem 0}th,td{border:1px solid #ddd;padding:.35rem;vertical-align:top}th{background:#f1f5f9}.caveat{background:#fff7ed;border:1px solid #fed7aa;padding:1rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}.card{border:1px solid #cbd5e1;border-radius:10px;padding:1rem;background:#f8fafc}.status{font-weight:700;color:#2563eb}.barrow{display:grid;grid-template-columns:220px 1fr 70px;gap:.75rem;align-items:center;margin:.35rem 0}.bar{height:18px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb}.timeline{border-left:3px solid #2563eb;padding-left:1rem}.timeline li{margin:.75rem 0}.timeline time{display:inline-block;min-width:160px;color:#475569}code{background:#f8fafc;padding:.1rem .25rem}'
     for filename,title,tids in VISUALIZATIONS:
-        parts=[f'<!doctype html><html><head><meta charset="utf-8"><title>{title}</title><style>{css}</style></head><body>',f'<h1>{title}</h1>', '<p>This standalone visualization summarizes descriptive digital traces generated by Kairn. It uses local exported CSV/JSON tables only and requires no internet access.</p>', '<div class="caveat"><strong>Caveat:</strong> These are descriptive traces, not performance scores or direct measures of cognition. Missing traces do not mean missing work.</div>']
-        for tid in tids: parts.append(_html_table(by.get(tid)))
+        parts=[f'<!doctype html><html><head><meta charset="utf-8"><title>{html.escape(title)}</title><style>{css}</style></head><body>',f'<h1>{html.escape(title)}</h1>', '<p>This standalone visualization summarizes descriptive digital traces generated by Kairn. It uses local exported CSV/JSON tables only and requires no internet access.</p>', '<div class="caveat"><strong>Caveat:</strong> These are descriptive traces, not performance scores or direct measures of cognition. Missing traces do not mean missing work.</div>']
+        parts.extend(_visual_sections(title, by))
+        for tid in tids: parts.append(_html_table(by.get(tid), limit=15))
         parts.append('<p>Related CSV table names are shown above. Open them from the <code>tables/</code> folder for complete data.</p></body></html>')
         p=viz/filename; p.write_text('\n'.join(parts),encoding='utf-8'); paths[f'visualization:{filename[:-5]}']=str(p)
     return paths

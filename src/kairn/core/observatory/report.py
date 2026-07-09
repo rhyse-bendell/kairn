@@ -86,12 +86,22 @@ def _normalized_events_table(db_path):
 
 def _stream_counts_table(tables):
     prim={'drive':'drive_activity_events','document_changelog':'document_edit_events','tldraw':'parsed_tldraw_events','transcript':'transcript_turn_events','normalized':'normalized_observatory_events'}; rows=[]
+    processing=next((t for t in tables if t.table_id=='source_processing_summary'),None)
+    kind_map={'drive':'drive_daily_log','document_changelog':'document_changelog','tldraw':'tldraw_sqlite_db','transcript':'transcript_srt'}
     for stream in ['drive','document_changelog','tldraw','transcript']:
         rec=sum(len(t.rows) for t in tables if t.source_stream==stream and not t.table_id.endswith('overall_counts'))
         avail=any(t.source_stream==stream and t.rows for t in tables)
         caveat='; '.join([t.caveat for t in tables if t.source_stream==stream and t.caveat])
-        rows.append({'source_stream':stream,'records':rec,'available':str(avail),'primary_table':prim[stream],'caveat':caveat})
-    return table_from_rows('stream_record_counts','Stream record counts','Availability and descriptive record counts by stream.','diagnostics',rows,columns=['source_stream','records','available','primary_table','caveat'])
+        detected=parsed=skipped=partial=0
+        if processing:
+            matches=[r for r in processing.rows if r.get('source_kind')==kind_map[stream]]
+            detected=len(matches); parsed=sum(int(float(r.get('records_written') or 0))>0 for r in matches); skipped=sum(str(r.get('action_taken','')).startswith('skipped') for r in matches); partial=sum(bool(r.get('warnings')) for r in matches)
+        if parsed: status='parsed_with_warnings' if partial else 'parsed'
+        elif detected and skipped: status='skipped'
+        elif detected: status='detected_not_parsed'
+        else: status='not_detected'
+        rows.append({'source_stream':stream,'status':status,'detected_sources':detected,'parsed_sources':parsed,'skipped_sources':skipped,'records':rec,'available':str(avail),'primary_table':prim[stream],'caveat':caveat})
+    return table_from_rows('stream_record_counts','Stream record counts','Detection, parsing status, and descriptive record counts by stream.','diagnostics',rows,columns=['source_stream','status','detected_sources','parsed_sources','skipped_sources','records','available','primary_table','caveat'])
 
 def _artifact_history_table(norm_table):
     d={}
