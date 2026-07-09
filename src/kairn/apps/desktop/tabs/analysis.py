@@ -16,6 +16,7 @@ class AnalysisTab(QWidget):
         cb=primary_action_button('Compute Observatory Metrics'); cb.clicked.connect(self.compute_observatory); eb=secondary_action_button('Export Observatory Report'); eb.clicked.connect(self.export_observatory); ob=secondary_action_button('Open Metrics Folder'); ob.clicked.connect(self.open_observatory)
         for w in [self.obs_team,self.obs_activity,self.obs_bin,cb,eb,ob]: o.addWidget(w)
         l.addLayout(o); self.obs_summary=QLabel('No observatory metrics computed.'); l.addWidget(self.obs_summary); self.obs_tables=QListWidget(); self.obs_tables.currentRowChanged.connect(self.show_observatory_table); l.addWidget(self.obs_tables); self.obs_detail=QTableWidget(); l.addWidget(self.obs_detail); self.obs_notes=QTextEdit(); self.obs_notes.setReadOnly(True); l.addWidget(self.obs_notes)
+        self.load_observatory_report_from_state()
     def run(self):
         out=str(Path(self.state.outputs_dir)/'metrics.csv')
         self.worker=TaskWorker('metrics',compute_metrics,self.state.db_path,out)
@@ -33,9 +34,21 @@ class AnalysisTab(QWidget):
         self.worker.finished_task.connect(self._observatory_done); self.worker.failed_task.connect(lambda e: append_log(self.log,e)); self.worker.start()
     def _observatory_done(self, report):
         self.state.last_observatory_report=report; self.state.last_observatory_tables=report.tables; self.state.last_observatory_warnings=report.warnings; self.state.last_observatory_chart_specs=report.charts
-        self.obs_summary.setText(f"Tables: {len(report.tables)} | Warnings: {len(report.warnings)} | Streams available: {sum(1 for t in report.tables if t.rows)}")
+        self.load_observatory_report_from_state(); append_log(self.log,'Observatory metrics computed')
+    def load_observatory_report_from_state(self) -> None:
+        report = self.state.last_observatory_report
+        if not report:
+            self.obs_summary.setText('No observatory metrics computed.')
+            return
+        out = f" | Output: {self.state.last_observatory_output_dir}" if self.state.last_observatory_output_dir else ""
+        self.obs_summary.setText(f"Tables: {len(report.tables)} | Warnings: {len(report.warnings)} | Streams available: {sum(1 for t in report.tables if t.rows)}{out}")
         self.obs_tables.clear(); [self.obs_tables.addItem(t.table_id) for t in report.tables]
-        self.obs_notes.setPlainText('\n'.join(report.caveats + report.warnings)); append_log(self.log,'Observatory metrics computed')
+        self.obs_notes.setPlainText('\n'.join((report.caveats or []) + (report.warnings or [])))
+        if report.tables:
+            self.obs_tables.setCurrentRow(0)
+            self.show_observatory_table(0)
+    def refresh(self):
+        self.load_observatory_report_from_state()
     def show_observatory_table(self, idx):
         if idx < 0 or not self.state.last_observatory_report: return
         t=self.state.last_observatory_report.tables[idx]; set_table_rows(self.obs_detail, t.rows, t.columns)

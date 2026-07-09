@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QFileDialog,QComboBox,QTextEdit,QSplitter,QMessageBox
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QFileDialog,QComboBox,QTextEdit,QSplitter,QMessageBox,QLabel
 from kairn.core.storage import repositories as repo
 from kairn.core.ingestion.service import ingest_root
 from kairn.core.profiles import list_builtin_profiles
@@ -12,7 +12,7 @@ from ..widgets import set_table_rows,append_log,page_header
 class SourcesTab(QWidget):
     def __init__(self,state,log):
         super().__init__(); self.state=state; self.log=log; self.worker=None; self.selected_source=None; self.last_inspection=None
-        l=QVBoxLayout(self); l.addWidget(page_header('Sources / Intake','Inspect sources, extract archives, build catalogs, and parse known workshop files.','Prepare / Parse Known Sources')); r=QHBoxLayout();
+        l=QVBoxLayout(self); l.addWidget(page_header('Sources / Intake','Inspect sources, extract archives, build catalogs, and parse known workshop files.','Prepare / Parse Known Sources')); l.addWidget(QLabel('Advanced source controls')); l.addWidget(QLabel('Use these when you need to inspect or process one source manually. Most users should use Generate Metrics Package from the Project Hub.')); r=QHBoxLayout();
         buttons=[('Select Folder',self.select),('Select File',self.select_file),('Inspect Selected Source',self.inspect_selected),('Prepare / Parse Known Sources',self.prepare_selected),('Extract ZIP + Prepare',self.extract_prepare),('Export Parsed Data Products',self.export_products),('Run Ingestion',self.ingest),('Refresh',self.refresh)]
         for txt,fn in buttons:
             b=QPushButton(txt); b.clicked.connect(fn); r.addWidget(b)
