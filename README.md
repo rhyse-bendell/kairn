@@ -21,10 +21,10 @@ kairn-gui
 
 Basic local testing workflow:
 1. Use Dashboard as the home/project launcher to start or load a project and open the workspace folder.
-2. Use Sources for data intake: select files or folders, inspect detected sources, extract archives, build artifact catalogs, parse known sources, and run ingestion.
-3. Use Process Data for parsed-data inspection and process-table operations.
-4. Use Replay for timeline playback and temporal inspection.
-5. Use Diagnostics for health checks, counts, warnings, and maintenance actions.
+2. Import Folder or Import File(s) from the Project Hub.
+3. Click Generate Metrics Package to process registered sources, compute observatory metrics, and export CSV/JSON/Markdown outputs.
+4. Open Metrics Folder or View Metrics in Analysis.
+5. Advanced/manual processing controls remain available under Advanced source controls when you need to inspect or process one source manually.
 
 
 

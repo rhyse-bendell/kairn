@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QDir, QModelIndex
@@ -29,7 +30,9 @@ from PySide6.QtWidgets import (
 
 from kairn.core.projects import import_file_to_project, import_folder_to_project, open_project_path, read_source_registry, register_project_source
 from kairn.core.sources import detect_compatible_source
-from kairn.core.workshop.intake import inspect_workshop_path
+from kairn.core.workshop.intake import inspect_workshop_path, prepare_workshop_source
+from kairn.core.observatory import build_observatory_report, export_observatory_report
+from ..workers import TaskWorker
 from ..widgets import append_log, muted_help_label, open_path, page_header, primary_cta_button, primary_action_button, secondary_button, secondary_action_button, section_header, set_table_rows, show_info, status_badge, workflow_card, workflow_step_label
 from .agents import AgentsTab
 from .artifacts import ArtifactsTab
@@ -39,12 +42,72 @@ from .process_data import ProcessDataTab
 from .sources import SourcesTab
 
 
+def process_registered_sources(project: dict, db_path: str, collection_id=None, run_id=None, profile=None, workspace_dir=None) -> dict:
+    """Process each source in the existing project source registry."""
+    sources = read_source_registry(project).get("sources", [])
+    result = {"sources_seen": len(sources), "sources_processed": 0, "warnings": []}
+    current_collection_id = collection_id
+    current_run_id = run_id
+    output_dir = None
+    for rec in sources:
+        path = rec.get("project_path") or rec.get("original_path")
+        if not path:
+            result["warnings"].append(f"Source {rec.get('source_id') or 'unknown'} has no path; skipped.")
+            continue
+        out = prepare_workshop_source(
+            path,
+            db_path,
+            workspace_dir or project.get("project_root") or ".",
+            collection_id=current_collection_id,
+            run_id=current_run_id,
+            profile=profile or "problem_framing_workshop",
+            extract=False,
+        )
+        current_collection_id = out.get("collection_id") or current_collection_id
+        current_run_id = out.get("run_id") or current_run_id
+        output_paths = out.get("output_paths") or {}
+        output_dir = output_paths.get("out_dir") or output_paths.get("workshop_intake_summary_json")
+        if output_dir and Path(output_dir).is_file():
+            output_dir = str(Path(output_dir).parent)
+        result["sources_processed"] += 1
+        result.setdefault("source_results", []).append(out)
+        result["warnings"].extend(out.get("warnings") or [])
+    result["collection_id"] = current_collection_id
+    result["run_id"] = current_run_id
+    if output_dir:
+        result["output_dir"] = str(output_dir)
+    return result
+
+
+def _generate_metrics_package_for_project(project: dict, state_values: dict) -> dict:
+    process_result = process_registered_sources(
+        project=project,
+        db_path=state_values.get("db_path"),
+        collection_id=state_values.get("collection_id"),
+        run_id=state_values.get("run_id"),
+        profile=state_values.get("profile"),
+        workspace_dir=state_values.get("workspace_dir"),
+    )
+    collection_id = process_result.get("collection_id") or state_values.get("collection_id")
+    run_id = process_result.get("run_id") or state_values.get("run_id")
+    report = build_observatory_report(project=project, db_path=state_values.get("db_path"), run_id=run_id, team=None, activity=None, bin_minutes=15)
+    if process_result.get("output_dir"):
+        out_dir = Path(process_result["output_dir"]) / "observatory_metrics"
+    elif state_values.get("active_run_reports_dir"):
+        out_dir = Path(state_values["active_run_reports_dir"]) / "observatory_metrics"
+    else:
+        out_dir = Path(project.get("project_root") or state_values.get("workspace_dir") or ".") / "exports" / f"observatory_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    paths = export_observatory_report(report, out_dir)
+    return {"process_result": process_result, "report": report, "paths": paths, "collection_id": collection_id, "run_id": run_id, "out_dir": paths["out_dir"]}
+
+
 class ProjectOverview(QWidget):
     def __init__(self, state, log, parent_tab: "ProjectTab"):
         super().__init__()
         self.state = state
         self.log = log
         self.parent_tab = parent_tab
+        self.worker = None
         self.selected_project_path: str | None = None
         self.project_action_buttons: list[QPushButton] = []
         self.model = QFileSystemModel(self)
@@ -54,6 +117,7 @@ class ProjectOverview(QWidget):
         self.header = page_header("Project Hub", "Manage the active Kairn project, import source files into the project workspace, inspect registered sources, and jump to the main workflows.", "Import Data Into Project")
         layout.addWidget(self.header)
         layout.addWidget(self._workflow_strip())
+        layout.addWidget(self._metrics_package_card())
         layout.addWidget(self._primary_import_card())
         self.next_step = muted_help_label("")
         layout.addWidget(self.next_step)
@@ -90,6 +154,31 @@ class ProjectOverview(QWidget):
         top.addWidget(right)
         top.setSizes([520, 680])
         self.refresh()
+
+    def _metrics_package_card(self):
+        box = QGroupBox("Metrics Package")
+        box.setStyleSheet("QGroupBox { background: #f0fdf4; border: 2px solid #86efac; border-radius: 14px; margin-top: 10px; padding: 12px; font-weight: 800; } QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 6px; }")
+        layout = QVBoxLayout(box)
+        self.metrics_state_title = QLabel("Next step: Import data")
+        self.metrics_state_title.setStyleSheet("font-size: 16px; font-weight: 800;")
+        layout.addWidget(self.metrics_state_title)
+        self.metrics_state_text = muted_help_label("Copy a folder or files into this Kairn project.")
+        layout.addWidget(self.metrics_state_text)
+        self.metrics_summary = muted_help_label("")
+        layout.addWidget(self.metrics_summary)
+        row = QHBoxLayout()
+        self.generate_metrics_button = primary_cta_button("Generate Metrics Package")
+        self.generate_metrics_button.setToolTip("Process imported sources, compute observatory metrics, and export report-ready tables.")
+        self.generate_metrics_button.clicked.connect(self.generate_metrics_package)
+        self.open_metrics_button = secondary_action_button("Open Metrics Folder")
+        self.open_metrics_button.clicked.connect(self.open_metrics_folder)
+        self.view_metrics_button = secondary_action_button("View Metrics in Analysis")
+        self.view_metrics_button.clicked.connect(self.view_metrics_in_analysis)
+        for button in (self.generate_metrics_button, self.open_metrics_button, self.view_metrics_button):
+            row.addWidget(button)
+        row.addStretch(1)
+        layout.addLayout(row)
+        return box
 
     def _workflow_strip(self):
         box = QGroupBox("Workflow")
@@ -198,7 +287,10 @@ class ProjectOverview(QWidget):
     def _project(self):
         if not self.state.has_active_project():
             return None
-        return {"project_root": self.state.active_project_root, "manifest_path": self.state.active_project_manifest_path, "db_path": self.state.db_path}
+        return {"project_id": self.state.active_project_id, "name": self.state.active_project_name, "project_root": self.state.active_project_root, "manifest_path": self.state.active_project_manifest_path, "db_path": self.state.db_path}
+
+    def _registered_sources(self) -> list[dict]:
+        return read_source_registry(self._project()).get("sources", []) if self._project() else []
 
     def _default_dir(self) -> str:
         base = getattr(self.state, "last_import_dir", None)
@@ -223,6 +315,7 @@ class ProjectOverview(QWidget):
         self.selected_project_path = None
         self.summary.setText("No project loaded. Start or load a project from Dashboard.\n\nProject files will appear here after you start or load a project.")
         self.next_step.setText("Next step: Start or load a project from Dashboard.")
+        self._update_metrics_package_state(0)
         self.project_files_label.setText("Project files will appear here after you start or load a project.")
         self.tree.setEnabled(False)
         self.tree.setRootIndex(QModelIndex())
@@ -253,21 +346,49 @@ class ProjectOverview(QWidget):
         self.tree.setEnabled(True)
         self.set_project_actions_enabled(True)
         self.project_files_label.setText(f"Project files:\n{root}")
-        source_count = len(read_source_registry(self._project()).get("sources", []))
-        empty_checklist = ("No sources imported yet.\n\n"
-            "Start here:\n"
-            "1. Click Import Folder or Import File(s).\n"
-            "2. Confirm the item appears under data/original.\n"
-            "3. Open Sources / Intake to inspect and parse it.\n"
-            "4. Open Files & History to review artifact events.\n"
-            "5. Open Replay to inspect the timeline.")
-        self.next_step.setText(empty_checklist if source_count == 0 else "Registered sources found. Next: open Sources / Intake to inspect and parse them.")
+        source_count = len(self._registered_sources())
+        self._update_metrics_package_state(source_count)
+        self.next_step.setText("Next step: Import data." if source_count == 0 else "Next step: Generate metrics package.")
         self._update_workflow_steps(source_count)
         self.summary.setText("\n".join([
             f"Project name: {self.state.active_project_name}", f"Project root: {root}", f"Active profile: {self.state.active_profile}", f"Database path: {self.state.db_path}", f"Active collaboration id: {self._short(self.state.active_collaboration_id)}", f"Active run id: {self._short(self.state.last_run_id)}",
         ]))
         self.model.setRootPath(str(root)); self.tree.setRootIndex(self.model.index(str(root)))
         self.refresh_registry()
+
+    def _update_metrics_package_state(self, source_count: int) -> None:
+        has_project = self.state.has_active_project()
+        has_report = bool(getattr(self.state, "last_observatory_report", None))
+        self.open_metrics_button.setVisible(has_report)
+        self.view_metrics_button.setVisible(has_report)
+        if not has_project:
+            self.metrics_state_title.setText("Start or load a project first")
+            self.metrics_state_text.setText("Start or load a project first.")
+            self.metrics_summary.setText("")
+            self.generate_metrics_button.setText("Generate Metrics Package")
+            self.generate_metrics_button.setEnabled(False)
+            return
+        if has_report:
+            tables = len(getattr(self.state, "last_observatory_tables", None) or [])
+            warnings = len(getattr(self.state, "last_observatory_warnings", None) or [])
+            out_dir = getattr(self.state, "last_observatory_output_dir", None) or "—"
+            self.metrics_state_title.setText("Metrics package ready")
+            self.metrics_state_text.setText("Tables, snippets, caveats, and chart specs were exported.")
+            self.metrics_summary.setText(f"Metrics package ready.\nTables: {tables}\nWarnings: {warnings}\nOutput: {out_dir}")
+            self.generate_metrics_button.setText("Regenerate Metrics Package")
+            self.generate_metrics_button.setEnabled(source_count > 0)
+            return
+        self.generate_metrics_button.setText("Generate Metrics Package")
+        if source_count == 0:
+            self.metrics_state_title.setText("Next step: Import data")
+            self.metrics_state_text.setText("Copy a folder or files into this Kairn project.")
+            self.metrics_summary.setText("Import a folder or files first.")
+            self.generate_metrics_button.setEnabled(False)
+        else:
+            self.metrics_state_title.setText("Next step: Generate metrics package")
+            self.metrics_state_text.setText("Kairn will process imported sources, compute observatory metrics, and export report-ready tables.")
+            self.metrics_summary.setText(f"Registered sources: {source_count}")
+            self.generate_metrics_button.setEnabled(True)
 
     def _short(self, value):
         return value[:8] if value else "—"
@@ -380,6 +501,70 @@ class ProjectOverview(QWidget):
         if path:
             rec = register_project_source(self._project(), path, copy_into_project=False, metadata={"detection": detect_compatible_source(path)})
             self.state.last_import_dir = str(Path(path).parent); append_log(self.log, f"Linked external source without copying: {path}"); self.refresh()
+
+    def generate_metrics_package(self) -> None:
+        if not self._require_project():
+            return
+        if not self._registered_sources():
+            self.metrics_summary.setText("Import a folder or files first.")
+            append_log(self.log, "Import a folder or files first.")
+            return
+        project = self._project()
+        state_values = {
+            "db_path": self.state.db_path,
+            "collection_id": self.state.active_collection_id,
+            "run_id": self.state.last_run_id,
+            "profile": self.state.active_profile_name or self.state.active_profile,
+            "workspace_dir": self.state.workspace_dir,
+            "active_run_reports_dir": self.state.active_run_reports_dir,
+        }
+        self.generate_metrics_button.setEnabled(False)
+        self.metrics_summary.setText("Generating metrics package…")
+        self.worker = TaskWorker("generate_metrics_package", _generate_metrics_package_for_project, project, state_values)
+        self.worker.finished_task.connect(self._metrics_package_done)
+        self.worker.failed_task.connect(self._metrics_package_failed)
+        self.worker.start()
+
+    def _metrics_package_done(self, result: dict) -> None:
+        process_result = result.get("process_result") or {}
+        report = result.get("report")
+        if result.get("collection_id"):
+            self.state.active_collection_id = result["collection_id"]
+        if result.get("run_id"):
+            self.state.last_run_id = result["run_id"]
+        if process_result.get("output_dir"):
+            self.state.last_output_dir = process_result.get("output_dir")
+        self.state.last_observatory_report = report
+        self.state.last_observatory_output_dir = result.get("out_dir")
+        self.state.last_observatory_tables = getattr(report, "tables", [])
+        self.state.last_observatory_warnings = getattr(report, "warnings", [])
+        self.state.last_observatory_chart_specs = getattr(report, "charts", [])
+        sources_processed = process_result.get("sources_processed", 0)
+        sources_seen = process_result.get("sources_seen", 0)
+        append_log(self.log, f"Generated metrics package: {result.get('out_dir')}")
+        append_log(self.log, f"Processed sources: {sources_processed}/{sources_seen}")
+        append_log(self.log, f"Tables: {len(self.state.last_observatory_tables)}")
+        append_log(self.log, f"Warnings: {len(self.state.last_observatory_warnings)}")
+        self.refresh()
+        parent_refresh = getattr(self.parent_tab, "refresh", None)
+        if callable(parent_refresh):
+            parent_refresh()
+
+    def _metrics_package_failed(self, error: str) -> None:
+        self.generate_metrics_button.setEnabled(True)
+        self.metrics_summary.setText(f"Metrics package generation failed.\n{error}")
+        append_log(self.log, "Metrics package generation failed.")
+        append_log(self.log, error)
+        QMessageBox.critical(self, "Metrics package generation failed", f"Metrics package generation failed.\n\n{error}")
+
+    def open_metrics_folder(self) -> None:
+        if self.state.last_observatory_output_dir:
+            open_path(self.state.last_observatory_output_dir)
+
+    def view_metrics_in_analysis(self) -> None:
+        if self.parent_tab.navigate_to and self.parent_tab.navigate_to("Analysis"):
+            return
+        append_log(self.log, "Open the Analysis tab to review generated metrics.")
 
     def _current_registry_record(self):
         row = self.registry_table.currentRow()
