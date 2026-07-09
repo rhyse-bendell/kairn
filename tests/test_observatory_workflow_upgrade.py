@@ -70,3 +70,38 @@ def test_normalized_events_and_visualization_export(tmp_path):
     assert "Trace Ecology Overview" in text
     assert "folder_inventory_summary" in text or "stream_record_counts" in text
     assert "http://" not in text and "https://" not in text
+
+
+def test_observatory_source_processing_is_idempotent_and_uses_event_keys(tmp_path):
+    (tmp_path / "dailyLog.csv").write_text("time,user,action,file_id\n2024-01-01,Alice,create,f1\n")
+    (tmp_path / "Team 1").mkdir()
+    (tmp_path / "Team 1" / "notes_changelog.txt").write_text("[2024-01-01T00:00:00Z] Alice added context\n")
+    (tmp_path / "Team 1" / "labeledTranscriptions.srt").write_text("1\n00:00:01,000 --> 00:00:02,000\nAlice: hi\n")
+    tldb = tmp_path / "TLDraw Logs.db"
+    with sqlite3.connect(tldb) as c:
+        c.execute("create table events (id text, timestamp text, actor text, action text, shape_id text)")
+        c.execute("insert into events values ('e1','2024-01-01T00:00:00Z','Alice','create','s1')")
+    db = tmp_path / "kairn.db"
+    discovered = discover_observatory_sources(tmp_path)
+    _process_discovered_sources(discovered, str(db))
+    _process_discovered_sources(discovered, str(db))
+    with sqlite3.connect(db) as c:
+        assert c.execute("select count(*) from drive_activity_events").fetchone()[0] == 1
+        assert c.execute("select count(*) from document_edit_events").fetchone()[0] == 1
+        assert c.execute("select count(*) from transcript_turn_events").fetchone()[0] == 1
+        assert c.execute("select count(*) from parsed_tldraw_events").fetchone()[0] == 1
+        for table in ["drive_activity_events", "document_edit_events", "transcript_turn_events", "parsed_tldraw_events"]:
+            cols = {r[1] for r in c.execute(f"pragma table_info({table})")}
+            assert "event_key" in cols
+
+
+def test_tldraw_processing_does_not_stop_at_ten_thousand_rows(tmp_path):
+    tldb = tmp_path / "tldraw_events.db"
+    with sqlite3.connect(tldb) as c:
+        c.execute("create table events (id integer, timestamp text, actor text, action text, shape_id text)")
+        c.executemany("insert into events values (?, ?, ?, ?, ?)", [(i, f"2024-01-01T00:00:{i % 60:02d}Z", "A", "create", f"s{i}") for i in range(10005)])
+    db = tmp_path / "kairn.db"
+    discovered = discover_observatory_sources(tmp_path)
+    _process_discovered_sources(discovered, str(db))
+    with sqlite3.connect(db) as c:
+        assert c.execute("select count(*) from parsed_tldraw_events").fetchone()[0] == 10005
