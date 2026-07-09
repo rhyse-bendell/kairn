@@ -158,6 +158,8 @@ By default, Kairn creates projects in:
 
 Set `KAIRN_HOME` to override the project home for testing or custom storage locations. Each project has its own `kairn.db`, so intake, parsing, replay, analysis, exports, diagnostics, and source registries stay scoped to the active project.
 
+When starting a new project, users can optionally add initial folders or files in the creation dialog. Kairn copies selected initial data into the project under `data/original/`; after creation, the Project Hub should offer **Generate Metrics Package** when those imports register sources. Generate Metrics Package also skips duplicate registered sources based on their original path so repeated imports do not double-count events.
+
 A project folder contains:
 
 ```text

@@ -7,18 +7,21 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from kairn.core.projects import create_project, load_project, list_projects
+from kairn.core.projects import create_project, import_file_to_project, import_folder_to_project, load_project, list_projects
 from kairn.core.projects.paths import get_default_kairn_home
+from kairn.core.sources import detect_compatible_source
 from ..widgets import (
     append_log,
     dashboard_description_label,
@@ -39,6 +42,22 @@ class NewProjectDialog(QDialog):
         self.description = QTextEdit()
         self.description.setPlaceholderText("Optional description")
         self.description.setFixedHeight(90)
+        self.initial_data_paths: list[str] = []
+        self._initial_data_keys: set[str] = set()
+        self.initial_data_display = QTextEdit()
+        self.initial_data_display.setReadOnly(True)
+        self.initial_data_display.setPlaceholderText("No initial data selected.")
+        self.initial_data_display.setFixedHeight(90)
+        self.add_folder_button = QPushButton("Add Folder")
+        self.add_files_button = QPushButton("Add File(s)")
+        self.clear_data_button = QPushButton("Clear Selected Data")
+        self.add_folder_button.clicked.connect(self.add_folder)
+        self.add_files_button.clicked.connect(self.add_files)
+        self.clear_data_button.clicked.connect(self.clear_initial_data)
+        data_buttons = QHBoxLayout()
+        data_buttons.addWidget(self.add_folder_button)
+        data_buttons.addWidget(self.add_files_button)
+        data_buttons.addWidget(self.clear_data_button)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -46,10 +65,47 @@ class NewProjectDialog(QDialog):
         layout.addWidget(self.name)
         layout.addWidget(QLabel("Description (optional)"))
         layout.addWidget(self.description)
+        layout.addWidget(QLabel("Initial data (optional)"))
+        layout.addWidget(self.initial_data_display)
+        layout.addLayout(data_buttons)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, str]:
-        return self.name.text().strip(), self.description.toPlainText().strip()
+    def _selection_key(self, path: str) -> str:
+        try:
+            return str(Path(path).expanduser().resolve(strict=False))
+        except Exception:
+            return str(Path(path).expanduser())
+
+    def add_initial_data_paths(self, paths: list[str]) -> None:
+        for path in paths:
+            if not path:
+                continue
+            key = self._selection_key(path)
+            if key in self._initial_data_keys:
+                continue
+            self._initial_data_keys.add(key)
+            self.initial_data_paths.append(str(path))
+        self._refresh_initial_data_display()
+
+    def _refresh_initial_data_display(self) -> None:
+        self.initial_data_display.setPlainText("\n".join(self.initial_data_paths))
+
+    def add_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Add Initial Folder")
+        if folder:
+            self.add_initial_data_paths([folder])
+
+    def add_files(self) -> None:
+        files, _selected_filter = QFileDialog.getOpenFileNames(self, "Add Initial File(s)")
+        self.add_initial_data_paths(files)
+
+    def clear_initial_data(self) -> None:
+        self.initial_data_paths.clear()
+        self._initial_data_keys.clear()
+        self._refresh_initial_data_display()
+
+    def values(self) -> tuple[str, str, list[str]]:
+        return self.name.text().strip(), self.description.toPlainText().strip(), list(self.initial_data_paths)
 
 
 class LoadProjectDialog(QDialog):
@@ -181,10 +237,28 @@ class DashboardTab(QWidget):
         dialog = NewProjectDialog(self)
         if dialog.exec() != QDialog.Accepted:
             return
-        name, description = dialog.values()
+        name, description, initial_data_paths = dialog.values()
         project = create_project(name or "Untitled Project", description)
         append_log(self.log, f"Created project at {project['project_root']}")
+        imported_count = 0
+        for src in initial_data_paths:
+            try:
+                detection = detect_compatible_source(src)
+                if Path(src).is_dir():
+                    imported = import_folder_to_project(project, src, copy=True, metadata={"detection": detection})
+                    append_log(self.log, f"Imported initial folder into project: {src} -> {imported.get('project_path')}")
+                    imported_count += 1
+                elif Path(src).is_file():
+                    imported = import_file_to_project(project, src, copy=True, metadata={"detection": detection})
+                    append_log(self.log, f"Imported initial file into project: {src} -> {imported.get('project_path')}")
+                    imported_count += 1
+                else:
+                    append_log(self.log, f"Initial data path does not exist; skipped: {src}")
+            except Exception as exc:
+                append_log(self.log, f"Failed to import initial data {src}: {exc}")
         self._activate_loaded_project(project)
+        if imported_count:
+            show_info(self, "Project created", f"Created project and imported {imported_count} initial source(s).")
 
     def load_project(self):
         projects = list_projects()
