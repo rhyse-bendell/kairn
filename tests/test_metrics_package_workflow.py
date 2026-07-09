@@ -133,3 +133,120 @@ def test_analysis_load_observatory_report_from_state(monkeypatch, tmp_path):
     assert tab.obs_tables.count() == 1
     assert tab.obs_tables.item(0).text() == "summary"
     app.processEvents()
+
+
+def test_canonical_source_path_normalizes_obvious_variants():
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs.project import _canonical_source_path
+
+    assert _canonical_source_path(None) is None
+    assert _canonical_source_path("") is None
+    assert _canonical_source_path("  ") is None
+    assert _canonical_source_path("Example/Teams [124PG]/") == _canonical_source_path("example/teams [124pg]\\")
+    assert _canonical_source_path("Example/Teams [124PG]") == _canonical_source_path("eXaMpLe/teams [124pg]")
+
+
+def test_dedupe_registered_sources_collapses_same_original_path():
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs.project import _dedupe_registered_sources
+
+    sources = [
+        {
+            "source_id": "src-a",
+            "original_path": r"E:\Post-doc Work\USU ARL Collab\Problem Framing Workshop\Data\Teams [124PG]",
+            "project_path": r"C:\Users\rhybe\Documents\Kairn\problemFramingWorkshop\data\original\Teams [124PG]",
+            "copied_into_project": True,
+        },
+        {
+            "source_id": "src-b",
+            "original_path": r"E:\Post-doc Work\USU ARL Collab\Problem Framing Workshop\Data\Teams [124PG]",
+            "project_path": r"C:\Users\rhybe\Documents\Kairn\problemFramingWorkshop\data\original\Teams [124PG]_e7be11",
+            "copied_into_project": True,
+        },
+    ]
+
+    retained, skipped = _dedupe_registered_sources(sources)
+
+    assert len(retained) == 1
+    assert len(skipped) == 1
+    assert skipped[0]["duplicate_of_source_id"] == "src-a"
+    assert "duplicate" in skipped[0]["skipped_reason"]
+
+
+def test_dedupe_registered_sources_keeps_different_original_paths():
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs.project import _dedupe_registered_sources
+
+    retained, skipped = _dedupe_registered_sources([
+        {"source_id": "src-a", "original_path": "/tmp/source-a"},
+        {"source_id": "src-b", "original_path": "/tmp/source-b"},
+    ])
+
+    assert len(retained) == 2
+    assert skipped == []
+
+
+def test_dedupe_registered_sources_falls_back_to_project_path():
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs.project import _dedupe_registered_sources
+
+    retained, skipped = _dedupe_registered_sources([
+        {"source_id": "src-a", "project_path": "/tmp/project-source"},
+        {"source_id": "src-b", "project_path": "/tmp/project-source/"},
+    ])
+
+    assert len(retained) == 1
+    assert len(skipped) == 1
+
+
+def test_dedupe_registered_sources_prefers_existing_project_path(tmp_path):
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs.project import _dedupe_registered_sources
+
+    existing = tmp_path / "existing-source"
+    existing.mkdir()
+    missing = tmp_path / "missing-source"
+    sources = [
+        {"source_id": "src-missing", "original_path": "/same/original", "project_path": str(missing), "copied_into_project": True},
+        {"source_id": "src-existing", "original_path": "/same/original", "project_path": str(existing), "copied_into_project": True},
+    ]
+
+    retained, skipped = _dedupe_registered_sources(sources)
+
+    assert retained[0]["source_id"] == "src-existing"
+    assert skipped[0]["source_id"] == "src-missing"
+    assert skipped[0]["duplicate_of_source_id"] == "src-existing"
+
+
+def test_process_registered_sources_prepares_duplicate_original_path_once(monkeypatch, tmp_path):
+    pytest.importorskip("PySide6")
+    from kairn.apps.desktop.tabs import project as project_tab
+
+    calls = []
+    sources = [
+        {"source_id": "src-a", "original_path": "/same/original", "project_path": str(tmp_path / "copy-a")},
+        {"source_id": "src-b", "original_path": "/same/original", "project_path": str(tmp_path / "copy-b")},
+    ]
+
+    monkeypatch.setattr(project_tab, "read_source_registry", lambda project: {"sources": sources})
+
+    def fake_prepare_workshop_source(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {
+            "collection_id": "coll-1",
+            "run_id": "run-1",
+            "output_paths": {"out_dir": str(tmp_path / "out")},
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(project_tab, "prepare_workshop_source", fake_prepare_workshop_source)
+
+    result = project_tab.process_registered_sources({"project_root": str(tmp_path)}, str(tmp_path / "kairn.db"))
+
+    assert len(calls) == 1
+    assert result["sources_seen"] == 2
+    assert result["sources_considered"] == 1
+    assert result["sources_processed"] == 1
+    assert result["sources_skipped_duplicates"] == 1
+    assert len(result["skipped_sources"]) == 1
+    assert any("Skipped duplicate registered source" in warning for warning in result["warnings"])
