@@ -27,6 +27,31 @@ class _HTML(html.parser.HTMLParser):
                 if tag.startswith('h'): self.heading=text
                 self.out.append((tag,text,f"html:{self.i}:{tag}", self.heading if not tag.startswith('h') else text))
             self.cur=None; self.buf=[]
+
+
+def _path_matches_artifact(value: str | None, row: dict) -> bool:
+    """Return whether a parsed observatory row belongs to this manifest artifact."""
+    if not value:
+        return False
+    rel = str(row.get('rel_path') or '').replace('\\', '/').strip('/')
+    if not rel:
+        return False
+    raw = str(value).replace('\\', '/')
+    try:
+        raw_resolved = str(Path(value).expanduser().resolve(strict=False)).replace('\\', '/')
+    except Exception:
+        raw_resolved = raw
+    candidates = {raw.strip('/'), raw_resolved.strip('/')}
+    rel_name = Path(rel).name.casefold()
+    rel_cf = rel.casefold()
+    for candidate in candidates:
+        c = candidate.casefold()
+        if c == rel_cf or c.endswith('/' + rel_cf):
+            return True
+        if '/' not in rel and Path(candidate).name.casefold() == rel_name:
+            return True
+    return False
+
 def extract_file_units(path: str, run: str, row: dict) -> tuple[list[dict], list[str]]:
     p=Path(path); ext=(p.suffix or '').lower(); warnings=[]; units=[]
     try:
@@ -61,7 +86,10 @@ def extract_tldraw_units(db_path: str, run: str, row: dict) -> list[dict]:
         try: rows=conn.execute(f"select * from {table}").fetchall()
         except Exception: continue
         for r in rows:
-            d=dict(r); txt=(d.get('text_snippet') or d.get('text') or '').strip()
+            d=dict(r)
+            if not _path_matches_artifact(d.get('origin') or d.get('source_path') or d.get('path'), row):
+                continue
+            txt=(d.get('text_snippet') or d.get('text') or '').strip()
             if txt:
                 loc=f"table:{table}:object_id:{d.get('object_id','')}:event_key:{d.get('event_key','')}"
                 units.append(_unit(run,row,len(units),'tldraw_text',txt,loc))
@@ -73,7 +101,10 @@ def extract_transcript_units(db_path: str, run: str, row: dict) -> list[dict]:
     try: rows=conn.execute('select * from transcript_turn_events').fetchall()
     except Exception: rows=[]
     for r in rows:
-        d=dict(r); txt=(d.get('text') or d.get('utterance') or '').strip()
+        d=dict(r)
+        if not _path_matches_artifact(d.get('source_path') or d.get('origin') or d.get('path'), row):
+            continue
+        txt=(d.get('text') or d.get('utterance') or '').strip()
         if txt:
             loc=f"source_path:{d.get('source_path','')}:turn_index:{d.get('turn_index','')}:start:{d.get('start_seconds','')}:end:{d.get('end_seconds','')}"
             units.append(_unit(run,row,len(units),'speech_turn',txt,loc))

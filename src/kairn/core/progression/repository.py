@@ -25,6 +25,7 @@ def ensure_progression_tables(db_path: str, conn: sqlite3.Connection | None = No
 def replace_rows(db_path: str, table: str, analysis_run_id: str, rows: list[dict], pk: str | None = None):
     conn=_conn(db_path)
     if pk:
+        conn.execute(f"delete from {table} where analysis_run_id=?", (analysis_run_id,))
         for r in rows:
             cols=list(r.keys()); vals=[r[c] for c in cols]
             conn.execute(f"insert or replace into {table}({','.join(cols)}) values({','.join(['?']*len(cols))})", vals)
