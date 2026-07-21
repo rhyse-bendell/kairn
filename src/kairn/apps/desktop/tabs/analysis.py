@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QPushButton,QTableWidget,QLabel,QLineEdit,QComboBox,QTextEdit,QListWidget
 from kairn.core.analysis.metrics import compute_metrics
 from kairn.core.observatory import build_observatory_report, export_observatory_report, table_to_dataframe, report_summary
+from kairn.core.progression import prepare_artifact_progression, generate_deterministic_progression_candidates, export_artifact_progression_package
 from ..workers import TaskWorker
 from ..widgets import set_table_rows,open_path,append_log,page_header,primary_action_button,secondary_action_button
 class AnalysisTab(QWidget):
@@ -16,6 +17,10 @@ class AnalysisTab(QWidget):
         cb=primary_action_button('Compute Observatory Metrics'); cb.clicked.connect(self.compute_observatory); eb=secondary_action_button('Export Observatory Report'); eb.clicked.connect(self.export_observatory); ob=secondary_action_button('Open Metrics Folder'); ob.clicked.connect(self.open_observatory)
         for w in [self.obs_team,self.obs_activity,self.obs_bin,cb,eb,ob]: o.addWidget(w)
         l.addLayout(o); self.obs_summary=QLabel('No observatory metrics computed.'); l.addWidget(self.obs_summary); l.addWidget(QLabel('Visualizations')); self.obs_visualizations=QListWidget(); self.obs_visualizations.itemDoubleClicked.connect(self.open_selected_visualization); l.addWidget(self.obs_visualizations); self.obs_tables=QListWidget(); self.obs_tables.currentRowChanged.connect(self.show_observatory_table); l.addWidget(self.obs_tables); self.obs_detail=QTableWidget(); l.addWidget(self.obs_detail); self.obs_notes=QTextEdit(); self.obs_notes.setReadOnly(True); l.addWidget(self.obs_notes)
+        l.addWidget(QLabel('Artifact Progression Analysis'))
+        pr=QHBoxLayout(); pb=primary_action_button('Prepare Artifact Progression'); pb.clicked.connect(self.prepare_progression); xb=secondary_action_button('Export Progression Package'); xb.clicked.connect(self.export_progression); obp=secondary_action_button('Open Progression Folder'); obp.clicked.connect(self.open_progression)
+        for w in [pb,xb,obp]: pr.addWidget(w)
+        l.addLayout(pr); self.progression_summary=QLabel('No artifact progression prepared.'); l.addWidget(self.progression_summary); self.progression_notes=QTextEdit(); self.progression_notes.setReadOnly(True); l.addWidget(self.progression_notes)
         self.load_observatory_report_from_state()
     def run(self):
         out=str(Path(self.state.outputs_dir)/'metrics.csv')
@@ -73,3 +78,22 @@ class AnalysisTab(QWidget):
         paths=export_observatory_report(self.state.last_observatory_report,out); self.state.last_observatory_output_dir=paths['out_dir']; append_log(self.log,f"Observatory report at {paths['out_dir']}"); self.obs_summary.setText(self.obs_summary.text()+f" | Output: {paths['out_dir']}")
     def open_observatory(self):
         if self.state.last_observatory_output_dir: open_path(self.state.last_observatory_output_dir)
+
+    def prepare_progression(self):
+        self.worker=TaskWorker('artifact_progression', prepare_artifact_progression, self._project(), self.state.active_collection_id, self.state.active_profile_name, False)
+        self.worker.finished_task.connect(self._progression_prepared); self.worker.failed_task.connect(lambda e: append_log(self.log,e)); self.worker.start()
+    def _progression_prepared(self, summary):
+        cand=generate_deterministic_progression_candidates(self.state.db_path, summary['analysis_run_id']); summary['deterministic_candidate_count']=cand.get('candidate_count',0)
+        self.state.last_progression_analysis_run_id=summary['analysis_run_id']; self.state.last_progression_summary=summary
+        self._show_progression_summary(summary); append_log(self.log,'Artifact progression prepared')
+    def _show_progression_summary(self, summary):
+        self.progression_summary.setText(f"Included: {summary.get('included_artifacts',0)} | Excluded: {summary.get('excluded_artifacts',0)} | Requires review: {summary.get('requires_review_artifacts',0)} | Evidence units: {summary.get('evidence_unit_count',0)} | Candidates: {summary.get('deterministic_candidate_count',0)}")
+        self.progression_notes.setPlainText('\n'.join(summary.get('warnings') or []))
+    def export_progression(self):
+        rid=getattr(self.state,'last_progression_analysis_run_id',None)
+        if not rid: self.prepare_progression(); return
+        out=str(Path(self.state.active_run_reports_dir or self.state.outputs_dir)/'artifact_progression')
+        res=export_artifact_progression_package(self.state.db_path, rid, out); self.state.last_progression_output_dir=res.get('out_dir'); append_log(self.log,f"Progression package at {res.get('out_dir')}")
+    def open_progression(self):
+        out=getattr(self.state,'last_progression_output_dir',None)
+        if out: open_path(out)
