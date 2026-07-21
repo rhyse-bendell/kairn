@@ -48,6 +48,9 @@ class AppState:
     last_observatory_tables: list | None = None
     last_observatory_warnings: list | None = None
     last_observatory_chart_specs: list | None = None
+    last_progression_analysis_run_id: str | None = None
+    last_progression_output_dir: str | None = None
+    last_progression_summary: dict | None = None
 
     def __post_init__(self) -> None:
         workspace = Path(self.workspace_dir)

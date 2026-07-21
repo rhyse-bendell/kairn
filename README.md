@@ -276,4 +276,16 @@ Kairn can help you inspect an imported project/workshop folder and produce descr
    - `tables/source_processing_summary.csv`
 
 Kairn recursively recognizes Google Drive `dailyLog.csv` files, document changelog files, TLDraw log databases, SRT transcripts, audio artifacts, and common document/export artifacts. The generated indicators are descriptive traces for understanding available digital exhaust; they are not performance scores or direct measures of cognition. Some streams may be unavailable or only partially parsed, and Kairn reports those caveats in diagnostics and the Markdown report.
+## Artifact Progression Analysis
+
+Artifact Progression Analysis prepares a human-reviewable evidence layer for tracing idea development across problem-framing workshop artifacts. It uses the existing artifact catalog and project-local `kairn.db`, maps artifacts to profile-defined progression stages, and extracts evidence units with source locators so researchers can inspect provenance before interpretation.
+
+This first version generates only conservative deterministic candidates such as exact recurrence and high lexical overlap. It does not use an LLM, call a remote service, score team performance, infer cognition, or perform automated qualitative coding. Future semantic providers may propose annotations, but researcher review remains required.
+
+CLI examples:
+
+```bash
+kairn progression prepare <project> --out <folder>
+kairn progression export <project> --analysis-run-id <run_id> --out <folder>
+```
 
