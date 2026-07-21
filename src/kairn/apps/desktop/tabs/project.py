@@ -170,15 +170,30 @@ def process_registered_sources(project: dict, db_path: str, collection_id=None, 
     current_run_id = run_id
     output_dir = None
     all_discovered = []
+    registered_source_results = []
     for rec in sources:
         path = _processing_path(rec)
         if not path:
             result["warnings"].append(f"Source {rec.get('source_id') or 'unknown'} has no path; skipped.")
             continue
         discovered = discover_observatory_sources(path)
+        for src in discovered:
+            src["registered_source_id"] = rec.get("source_id")
+            src["registered_original_path"] = rec.get("original_path")
+            src["registered_project_path"] = rec.get("project_path")
+            src["registered_processing_path"] = path
         all_discovered.extend(discovered)
-        summary, route_warnings = _process_discovered_sources(discovered, db_path)
+        registered_source_results.append({"registered_source": rec, "processing_path": path, "discovered_sources": discovered})
+
+    processing_summary, route_warnings = _process_discovered_sources(all_discovered, db_path)
+    result["warnings"].extend(route_warnings)
+    result["processing_summary"] = processing_summary
+
+    for source_result in registered_source_results:
+        rec = source_result["registered_source"]
+        path = source_result["processing_path"]
         out = {}
+        legacy_warnings = []
         try:
             out = prepare_workshop_source(path, db_path, workspace_dir or project.get("project_root") or ".", collection_id=current_collection_id, run_id=current_run_id, profile=profile or "problem_framing_workshop", extract=False)
             current_collection_id = out.get("collection_id") or current_collection_id
@@ -187,10 +202,12 @@ def process_registered_sources(project: dict, db_path: str, collection_id=None, 
             output_dir = output_paths.get("out_dir") or output_paths.get("workshop_intake_summary_json")
             if output_dir and Path(output_dir).is_file(): output_dir = str(Path(output_dir).parent)
         except Exception as exc:
-            route_warnings.append(f"Legacy workshop intake skipped for {path}: {exc}")
+            legacy_warnings.append(f"Legacy workshop intake skipped for {path}: {exc}")
         result["sources_processed"] += 1
-        result.setdefault("source_results", []).append({"registered_source": rec, "discovered_sources": discovered, "processing_summary": summary, "legacy_intake": out})
-        result["warnings"].extend(route_warnings + (out.get("warnings") or [] if isinstance(out, dict) else []))
+        source_result["processing_summary"] = processing_summary
+        source_result["legacy_intake"] = out
+        result.setdefault("source_results", []).append(source_result)
+        result["warnings"].extend(legacy_warnings + (out.get("warnings") or [] if isinstance(out, dict) else []))
     result["discovered_sources"] = all_discovered
     result["collection_id"] = current_collection_id
     result["run_id"] = current_run_id

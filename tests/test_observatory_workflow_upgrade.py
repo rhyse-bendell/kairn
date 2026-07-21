@@ -1,4 +1,5 @@
 import sqlite3
+import pytest
 from pathlib import Path
 
 from kairn.core.observatory.source_processing import discover_observatory_sources, _process_discovered_sources
@@ -105,3 +106,33 @@ def test_tldraw_processing_does_not_stop_at_ten_thousand_rows(tmp_path):
     _process_discovered_sources(discovered, str(db))
     with sqlite3.connect(db) as c:
         assert c.execute("select count(*) from parsed_tldraw_events").fetchone()[0] == 10005
+
+
+def test_registered_source_processing_batches_discovery_before_clearing(tmp_path, monkeypatch):
+    pytest.importorskip('PySide6')
+    from kairn.apps.desktop.tabs import project as project_tab
+    from kairn.core.projects import create_project, register_project_source
+
+    first = tmp_path / 'first'; first.mkdir()
+    second = tmp_path / 'second'; second.mkdir()
+    (first / 'dailyLog.csv').write_text('time,user,action,file_id\n2024-01-01,Alice,create,f1\n', encoding='utf-8')
+    (second / 'dailyLog.csv').write_text('time,user,action,file_id\n2024-01-02,Bob,edit,f2\n', encoding='utf-8')
+    project = create_project('Batch Sources', kairn_home=tmp_path)
+    register_project_source(project, str(first), copy_into_project=False)
+    register_project_source(project, str(second), copy_into_project=False)
+
+    legacy_calls = []
+    def fake_prepare(path, *args, **kwargs):
+        legacy_calls.append(path)
+        return {'collection_id': 'c', 'run_id': 'r', 'warnings': []}
+    monkeypatch.setattr(project_tab, 'prepare_workshop_source', fake_prepare)
+
+    result = project_tab.process_registered_sources(project, project['db_path'])
+
+    assert result['sources_processed'] == 2
+    assert len(legacy_calls) == 2
+    assert len(result['processing_summary']) == 2
+    assert all(src.get('registered_source_id') for src in result['discovered_sources'])
+    with sqlite3.connect(project['db_path']) as c:
+        paths = {Path(r[0]).parent.name for r in c.execute('select source_path from drive_activity_events')}
+    assert paths == {'first', 'second'}
