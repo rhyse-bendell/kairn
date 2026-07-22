@@ -66,7 +66,7 @@ def _diagnostic_tables(db_path):
         tables.append(table_from_rows('folder_inventory_summary','Folder inventory summary','File counts and sizes by extension.','diagnostics',list(ext.values()),columns=['extension','file_count','total_size_bytes']))
         tables.append(table_from_rows('folder_inventory_by_area','Folder inventory by area','File counts by inferred team/activity and extension.','diagnostics',list(area.values()),columns=['inferred_team','inferred_activity','extension','file_count','total_size_bytes']))
     if proc:
-        tables.append(table_from_rows('source_processing_summary','Source processing summary','What Kairn recognized, parsed, inventoried, or skipped.','diagnostics',proc,columns=['source_id','source_kind','path','action_taken','processed','records_written','skipped_reason','warnings']))
+        tables.append(table_from_rows('source_processing_summary','Source processing summary','What Kairn recognized, parsed, inventoried, or skipped.','diagnostics',proc,columns=['source_id','source_kind','path','registered_source_id','registered_original_path','registered_project_path','registered_processing_path','action_taken','processed','records_written','skipped_reason','warnings']))
     return tables
 
 def _normalized_events_table(db_path):

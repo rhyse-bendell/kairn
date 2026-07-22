@@ -276,6 +276,19 @@ Kairn can help you inspect an imported project/workshop folder and produce descr
    - `tables/source_processing_summary.csv`
 
 Kairn recursively recognizes Google Drive `dailyLog.csv` files, document changelog files, TLDraw log databases, SRT transcripts, audio artifacts, and common document/export artifacts. The generated indicators are descriptive traces for understanding available digital exhaust; they are not performance scores or direct measures of cognition. Some streams may be unavailable or only partially parsed, and Kairn reports those caveats in diagnostics and the Markdown report.
+
+## Evidence Readiness Validation
+
+Evidence Readiness Validation runs the deterministic source-processing, observatory, and artifact-progression layers together in a headless workflow before any local semantic/LLM assistance is used. It reports whether expected source streams were detected and parsed, checks that normalized observatory events and artifact evidence units exist, and writes a readiness package with checks, a JSON summary, a manifest, and a concise Markdown report.
+
+This workflow does not call a model, does not produce qualitative findings, and does not score participants or teams. A ready verdict only means the deterministic evidence layer is structurally coherent enough for later local semantic assistance and researcher review.
+
+CLI example:
+
+```bash
+kairn validate evidence <project> --out <folder> --expect-stream drive --expect-stream document_changelog --expect-stream tldraw --expect-stream transcript
+```
+
 ## Artifact Progression Analysis
 
 Artifact Progression Analysis prepares a human-reviewable evidence layer for tracing idea development across problem-framing workshop artifacts. It uses the existing artifact catalog and project-local `kairn.db`, maps artifacts to profile-defined progression stages, and extracts evidence units with source locators so researchers can inspect provenance before interpretation.

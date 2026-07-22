@@ -1,4 +1,5 @@
 import argparse, json
+from datetime import datetime
 from pathlib import Path
 from kairn.core.ingestion.service import ingest_root
 from kairn.core.export.compiled_json import export_compiled
@@ -21,8 +22,9 @@ from kairn.core.replay.export import export_replay_events_csv, export_replay_eve
 from kairn.core.projects import create_project, load_project, list_projects, register_project_source, create_project_run
 from kairn.core.projects.service import open_project_path
 from kairn.core.export.workshop import export_workshop_data
-from kairn.core.observatory import build_observatory_report, export_observatory_report, report_summary
+from kairn.core.observatory import build_observatory_report, export_observatory_report, report_summary, process_registered_sources
 from kairn.core.progression import prepare_artifact_progression, generate_deterministic_progression_candidates, export_artifact_progression_package
+from kairn.core.validation import run_evidence_readiness_validation
 
 def main():
     p=argparse.ArgumentParser('kairn'); sp=p.add_subparsers(dest='cmd')
@@ -43,7 +45,9 @@ def main():
     proj=sp.add_parser('projects', help='Create, list, load, and manage local Kairn projects'); pjsp=proj.add_subparsers(dest='projects_type'); pc=pjsp.add_parser('create'); pc.add_argument('name'); pc.add_argument('--description',default=''); pc.add_argument('--home'); pc.add_argument('--profile',default='problem_framing_workshop'); pl=pjsp.add_parser('list'); pl.add_argument('--home'); psw=pjsp.add_parser('show'); psw.add_argument('project'); po=pjsp.add_parser('open'); po.add_argument('project'); prs=pjsp.add_parser('register-source'); prs.add_argument('project'); prs.add_argument('source_path'); prs.add_argument('--copy',action='store_true'); prs.add_argument('--source-type'); pnr=pjsp.add_parser('new-run'); pnr.add_argument('project'); pnr.add_argument('--label');
     srcp=sp.add_parser('sources'); srcsp=srcp.add_subparsers(dest='sources_type'); si=srcsp.add_parser('inspect'); si.add_argument('path')
     rep=sp.add_parser('replay'); repsp=rep.add_subparsers(dest='replay_type'); rs=repsp.add_parser('summary'); rs.add_argument('--db',default='kairn.db'); rs.add_argument('--collection-id'); rs.add_argument('--run-id'); re=repsp.add_parser('export'); re.add_argument('--db',default='kairn.db'); re.add_argument('--collection-id'); re.add_argument('--run-id'); re.add_argument('--out-dir',required=True)
-    obs=sp.add_parser('observatory'); obsp=obs.add_subparsers(dest='observatory_type'); obr=obsp.add_parser('report'); obr.add_argument('project'); obr.add_argument('--out'); obr.add_argument('--team'); obr.add_argument('--activity'); obr.add_argument('--bin-minutes',type=int,default=15); obr.add_argument('--no-csv',action='store_true'); obr.add_argument('--no-json',action='store_true'); obr.add_argument('--no-markdown',action='store_true')
+    obs=sp.add_parser('observatory'); obsp=obs.add_subparsers(dest='observatory_type'); obr=obsp.add_parser('report'); obr.add_argument('project'); obr.add_argument('--out'); obr.add_argument('--team'); obr.add_argument('--activity'); obr.add_argument('--bin-minutes',type=int,default=15); obr.add_argument('--no-csv',action='store_true'); obr.add_argument('--no-json',action='store_true'); obr.add_argument('--no-markdown',action='store_true'); obr.add_argument('--process-sources',action='store_true')
+
+    val=sp.add_parser('validate'); valsp=val.add_subparsers(dest='validate_type'); ve=valsp.add_parser('evidence'); ve.add_argument('project'); ve.add_argument('--out'); ve.add_argument('--profile',default='problem_framing_workshop'); ve.add_argument('--include-reflections',action='store_true'); ve.add_argument('--expect-stream',action='append',choices=['drive','document_changelog','tldraw','transcript'],default=[]); ve.add_argument('--bin-minutes',type=int,default=15)
     prog=sp.add_parser('progression'); prgsp=prog.add_subparsers(dest='progression_type'); prgp=prgsp.add_parser('prepare'); prgp.add_argument('project'); prgp.add_argument('--collection-id'); prgp.add_argument('--profile',default='problem_framing_workshop'); prgp.add_argument('--include-reflections',action='store_true'); prgp.add_argument('--out'); prge=prgsp.add_parser('export'); prge.add_argument('project'); prge.add_argument('--analysis-run-id',required=True); prge.add_argument('--out',required=True)
     proc=sp.add_parser('process'); prsp=proc.add_subparsers(dest='process_type'); pbu=prsp.add_parser('build-unified'); pbu.add_argument('--db',default='kairn.db'); pbu.add_argument('--collection-id'); pbu.add_argument('--run-id'); psn=prsp.add_parser('snapshots'); psn.add_argument('--db',default='kairn.db'); psn.add_argument('--collection-id'); psn.add_argument('--run-id')
     sp.add_parser('diagnose'); mt=sp.add_parser('maintenance'); msp=mt.add_subparsers(dest='mtype'); msp.add_parser('fix-changelog-timestamps')
@@ -78,7 +82,14 @@ def main():
     elif a.cmd=='replay' and a.replay_type=='export':
         ev=load_replay_events(a.db,a.collection_id,a.run_id); summ=get_replay_summary(ev); out=Path(a.out_dir); print(json.dumps({'csv':export_replay_events_csv(ev,out/'csv'/'replay_events.csv'),'json':export_replay_events_json(ev,out/'json'/'replay_events.json'),'summary':export_replay_summary_json(summ,out/'reports'/'replay_summary.json')}, indent=2))
     elif a.cmd=='observatory' and a.observatory_type=='report':
-        pr=load_project(a.project); out=a.out or str(Path(pr.get('project_root','.') )/'runs'/'observatory_report'); report=build_observatory_report(pr, pr.get('db_path') or str(Path(pr.get('project_root','.'))/'kairn.db'), run_id=pr.get('active_run_id'), team=a.team, activity=a.activity, bin_minutes=a.bin_minutes); paths=export_observatory_report(report,out,include_csv=not a.no_csv,include_json=not a.no_json,include_markdown=not a.no_markdown); print(json.dumps({'out_dir':paths.get('out_dir'),'summary':report_summary(report)}, indent=2))
+        pr=load_project(a.project); db=pr.get('db_path') or str(Path(pr.get('project_root','.'))/'kairn.db'); process_summary=None
+        if a.process_sources:
+            process_summary=process_registered_sources(pr, db, collection_id=pr.get('active_collection_id'), run_id=pr.get('active_run_id'), profile=pr.get('active_profile'), workspace_dir=pr.get('project_root'))
+        out=a.out or str(Path(pr.get('project_root','.') )/'runs'/'observatory_report'); report=build_observatory_report(pr, db, run_id=(process_summary or {}).get('run_id') or pr.get('active_run_id'), team=a.team, activity=a.activity, bin_minutes=a.bin_minutes); paths=export_observatory_report(report,out,include_csv=not a.no_csv,include_json=not a.no_json,include_markdown=not a.no_markdown); resp={'out_dir':paths.get('out_dir'),'summary':report_summary(report)}
+        if process_summary is not None: resp['process_summary']=process_summary
+        print(json.dumps(resp, indent=2))
+    elif a.cmd=='validate' and a.validate_type=='evidence':
+        pr=load_project(a.project); out=a.out or str(Path(pr.get('project_root','.') )/'exports'/f"evidence_readiness_{datetime.now().strftime('%Y%m%d_%H%M%S')}"); result=run_evidence_readiness_validation(pr,out,profile=a.profile,include_reflections=a.include_reflections,expected_streams=a.expect_stream,bin_minutes=a.bin_minutes); print(json.dumps({'out_dir':result.get('out_dir'),'manifest':result.get('manifest'),'summary':{k:v for k,v in result.get('summary',{}).items() if k!='checks'}}, indent=2))
     elif a.cmd=='progression' and a.progression_type=='prepare':
         pr=load_project(a.project); summary=prepare_artifact_progression(pr, collection_id=a.collection_id, profile=a.profile, include_reflections=a.include_reflections); cand=generate_deterministic_progression_candidates(pr['db_path'], summary['analysis_run_id']); summary['deterministic_candidate_count']=cand.get('candidate_count',0);
         if a.out: summary['export']=export_artifact_progression_package(pr['db_path'], summary['analysis_run_id'], a.out)
