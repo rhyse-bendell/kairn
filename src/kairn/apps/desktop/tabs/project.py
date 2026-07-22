@@ -188,6 +188,8 @@ def process_registered_sources(project: dict, db_path: str, collection_id=None, 
     processing_summary, route_warnings = _process_discovered_sources(all_discovered, db_path)
     result["warnings"].extend(route_warnings)
     result["processing_summary"] = processing_summary
+    result["source_processing_summary"] = processing_summary
+    result["discovered_source_count"] = len(all_discovered)
 
     for source_result in registered_source_results:
         rec = source_result["registered_source"]

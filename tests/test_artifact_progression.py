@@ -6,7 +6,7 @@ from kairn.core.projects import create_project, load_project
 from kairn.core.profiles import load_profile
 from kairn.core.progression import prepare_artifact_progression, generate_deterministic_progression_candidates, export_artifact_progression_package
 from kairn.core.progression import repository as prepo
-from kairn.core.progression.extraction import extract_file_units
+from kairn.core.progression.extraction import extract_file_units, extract_tldraw_units, extract_transcript_units
 
 
 def _project_with_files(tmp_path):
@@ -94,12 +94,13 @@ def test_tldraw_and_transcript_extraction_scope_to_manifest_artifact(tmp_path):
         c.execute('create table transcript_turn_events(source_path text, text text, turn_index text, start_seconds text, end_seconds text)')
         c.execute('insert into transcript_turn_events values (?,?,?,?,?)', (str(tmp_path / 'Team 1' / 'team_transcript.srt'), 'team one transcript', '1', '0', '1'))
         c.execute('insert into transcript_turn_events values (?,?,?,?,?)', (str(tmp_path / 'Team 2' / 'team_transcript.srt'), 'team two transcript', '1', '0', '1'))
-    from kairn.core.progression.extraction import extract_tldraw_units, extract_transcript_units
     row1 = {'artifact_id': 'a1', 'collection_id': 'c', 'rel_path': 'Team 1/TLDraw Logs.db', 'stage': 's', 'stage_order': '1', 'team_id': 'Team 1', 'participant_id': ''}
-    tldraw_units = extract_tldraw_units(str(db), 'run', row1)
+    tldraw_units, warnings = extract_tldraw_units(str(db), 'run', row1, artifact_path=str(tmp_path / 'Team 1' / 'TLDraw Logs.db'))
+    assert warnings == []
     assert [u['text'] for u in tldraw_units] == ['team one board']
     row2 = dict(row1, artifact_id='a2', rel_path='Team 2/team_transcript.srt', team_id='Team 2')
-    transcript_units = extract_transcript_units(str(db), 'run', row2)
+    transcript_units, warnings = extract_transcript_units(str(db), 'run', row2, artifact_path=str(tmp_path / 'Team 2' / 'team_transcript.srt'))
+    assert warnings == []
     assert [u['text'] for u in transcript_units] == ['team two transcript']
 
 
@@ -110,3 +111,38 @@ def test_replace_rows_with_pk_deletes_stale_analysis_run_rows(tmp_path):
     prepo.replace_rows(str(db), prepo.CANDIDATE_TABLE, 'run', [dict(base, candidate_id='keep'), dict(base, candidate_id='stale')], pk='candidate_id')
     prepo.replace_rows(str(db), prepo.CANDIDATE_TABLE, 'run', [dict(base, candidate_id='keep')], pk='candidate_id')
     assert [r['candidate_id'] for r in prepo.fetch_rows(str(db), prepo.CANDIDATE_TABLE, 'run')] == ['keep']
+
+
+def test_transcript_extraction_refuses_ambiguous_fallback(tmp_path):
+    db = tmp_path / 'kairn.db'
+    with sqlite3.connect(db) as c:
+        c.execute('create table transcript_turn_events(source_path text, text text, turn_index text, start_seconds text, end_seconds text)')
+        c.execute('insert into transcript_turn_events values (?,?,?,?,?)', (str(tmp_path/'a.srt'), 'a', '1', '0', '1'))
+        c.execute('insert into transcript_turn_events values (?,?,?,?,?)', (str(tmp_path/'b.srt'), 'b', '1', '0', '1'))
+    row={'artifact_id':'a','collection_id':'c','stage':'s','stage_order':'1','team_id':'Team 1','participant_id':''}
+    units, warnings = extract_transcript_units(str(db), 'run', row, artifact_path=str(tmp_path/'missing.srt'))
+    assert units == []
+    assert any('multiple transcript sources' in w for w in warnings)
+
+
+def test_tldraw_extraction_refuses_ambiguous_fallback(tmp_path):
+    db = tmp_path / 'kairn.db'
+    with sqlite3.connect(db) as c:
+        c.execute('create table parsed_tldraw_events(event_key text, object_id text, origin text, text_snippet text)')
+        c.execute('insert into parsed_tldraw_events values (?,?,?,?)', ('e1', 'o1', str(tmp_path/'a.db'), 'a'))
+        c.execute('insert into parsed_tldraw_events values (?,?,?,?)', ('e2', 'o2', str(tmp_path/'b.db'), 'b'))
+    row={'artifact_id':'a','collection_id':'c','stage':'s','stage_order':'1','team_id':'Team 1','participant_id':''}
+    units, warnings = extract_tldraw_units(str(db), 'run', row, artifact_path=str(tmp_path/'missing.db'))
+    assert units == []
+    assert any('multiple TLDraw sources' in w for w in warnings)
+
+
+def test_empty_progression_export_writes_headers(tmp_path):
+    db = tmp_path / 'kairn.db'
+    prepo.ensure_progression_tables(str(db))
+    prepo.upsert_run(str(db), {'analysis_run_id':'run-empty','project_id':'p','collection_id':'c','profile':'problem_framing_workshop','created_at':'now','settings_json':'{}','status':'completed','warnings_json':'[]'})
+    out=tmp_path/'empty_export'
+    export_artifact_progression_package(str(db), 'run-empty', str(out))
+    assert (out/'artifact_evidence_units.csv').read_text(encoding='utf-8').startswith('evidence_unit_id,analysis_run_id,artifact_id')
+    assert (out/'artifact_progression_candidates.csv').read_text(encoding='utf-8').startswith('candidate_id,analysis_run_id,team_id')
+    assert (out/'team_progression_matrix_long.csv').read_text(encoding='utf-8').startswith('analysis_run_id,team_id,stage')

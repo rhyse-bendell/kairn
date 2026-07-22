@@ -264,10 +264,11 @@ def _parse_tldraw_db(path: Path, src: dict) -> tuple[list[dict], list[str]]:
     return out, warnings
 
 
-def _process_discovered_sources(discovered, db_path):
+def _process_discovered_sources(discovered, db_path, clear_existing: bool = True):
     summary = []; warnings = []
     with sqlite3.connect(db_path) as conn:
-        _clear_generated_observatory_tables(conn)
+        if clear_existing:
+            _clear_generated_observatory_tables(conn)
         for i, src in enumerate(discovered, 1):
             kind = src['source_kind']; path = Path(src['path']); records = 0; action = 'inventory_only'; warn = ''
             try:
@@ -302,8 +303,8 @@ def _process_discovered_sources(discovered, db_path):
                     action = 'inventory_only'
             except Exception as exc:
                 warn = str(exc); warnings.append(f'{path}: {warn}'); action = f'skipped_{kind}'
-            summary.append({'source_id': str(i), 'source_kind': kind, 'path': str(path), 'action_taken': action, 'processed': str(records > 0 or action == 'inventory_only'), 'records_written': str(records), 'skipped_reason': '' if records or action == 'inventory_only' else warn, 'warnings': warn})
-        _insert_rows(conn, 'source_processing_summary', ['source_id', 'source_kind', 'path', 'action_taken', 'processed', 'records_written', 'skipped_reason', 'warnings'], summary)
+            summary.append({'source_id': str(i), 'source_kind': kind, 'path': str(path), 'registered_source_id': src.get('registered_source_id'), 'registered_original_path': src.get('registered_original_path'), 'registered_project_path': src.get('registered_project_path'), 'registered_processing_path': src.get('registered_processing_path'), 'action_taken': action, 'processed': str(records > 0 or action == 'inventory_only'), 'records_written': str(records), 'skipped_reason': '' if records or action == 'inventory_only' else warn, 'warnings': warn})
+        _insert_rows(conn, 'source_processing_summary', ['source_id', 'source_kind', 'path', 'registered_source_id', 'registered_original_path', 'registered_project_path', 'registered_processing_path', 'action_taken', 'processed', 'records_written', 'skipped_reason', 'warnings'], summary)
         _insert_rows(conn, 'folder_inventory_sources', ['source_kind', 'path', 'relative_path', 'inferred_team', 'inferred_activity', 'size_bytes', 'mtime', 'reason'], discovered)
         conn.commit()
     return summary, warnings
