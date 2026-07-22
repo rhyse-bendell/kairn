@@ -29,28 +29,46 @@ class _HTML(html.parser.HTMLParser):
             self.cur=None; self.buf=[]
 
 
-def _path_matches_artifact(value: str | None, row: dict) -> bool:
-    """Return whether a parsed observatory row belongs to this manifest artifact."""
+def _canonical_path(value: str | None) -> str:
     if not value:
-        return False
-    rel = str(row.get('rel_path') or '').replace('\\', '/').strip('/')
-    if not rel:
-        return False
-    raw = str(value).replace('\\', '/')
+        return ''
+    raw = str(value).strip().replace('\\', '/')
+    raw = raw.rstrip('/\\')
+    if not raw:
+        return ''
     try:
-        raw_resolved = str(Path(value).expanduser().resolve(strict=False)).replace('\\', '/')
+        raw = str(Path(raw).expanduser().resolve(strict=False)).replace('\\', '/')
     except Exception:
-        raw_resolved = raw
-    candidates = {raw.strip('/'), raw_resolved.strip('/')}
-    rel_name = Path(rel).name.casefold()
-    rel_cf = rel.casefold()
-    for candidate in candidates:
-        c = candidate.casefold()
-        if c == rel_cf or c.endswith('/' + rel_cf):
-            return True
-        if '/' not in rel and Path(candidate).name.casefold() == rel_name:
-            return True
-    return False
+        raw = raw.replace('\\', '/')
+    return raw.rstrip('/\\').casefold()
+
+def _row_source_values(d: dict, *names: str) -> list[str]:
+    vals=[]
+    for name in names:
+        v=d.get(name)
+        if v and str(v) not in vals:
+            vals.append(str(v))
+    return vals
+
+def _scope_rows(rows: list[dict], artifact_path: str | None, source_names: tuple[str, ...], label: str) -> tuple[list[dict], list[str]]:
+    if not artifact_path:
+        return rows, []
+    target=_canonical_path(artifact_path)
+    exact=[d for d in rows if any(_canonical_path(v)==target for v in _row_source_values(d, *source_names))]
+    if exact:
+        return exact, []
+    distinct={}
+    for d in rows:
+        for v in _row_source_values(d, *source_names):
+            cv=_canonical_path(v)
+            if cv:
+                distinct.setdefault(cv, v)
+    if len(distinct)==1:
+        only=next(iter(distinct.values()))
+        return rows, [f"Could not exactly scope {label} evidence to artifact path {artifact_path}; using the only {label} source present: {only}."]
+    if len(distinct)>1:
+        return [], [f"Could not scope {label} evidence to artifact path {artifact_path}; multiple {label} sources are present."]
+    return rows, []
 
 def extract_file_units(path: str, run: str, row: dict) -> tuple[list[dict], list[str]]:
     p=Path(path); ext=(p.suffix or '').lower(); warnings=[]; units=[]
@@ -80,32 +98,31 @@ def extract_file_units(path: str, run: str, row: dict) -> tuple[list[dict], list
     except Exception as e: warnings.append(f"could not read artifact content: {e}")
     return units,warnings
 
-def extract_tldraw_units(db_path: str, run: str, row: dict) -> list[dict]:
-    conn=connect(db_path); init_db(conn); units=[]
+def extract_tldraw_units(db_path: str, run: str, row: dict, artifact_path: str | None = None) -> tuple[list[dict], list[str]]:
+    conn=connect(db_path); init_db(conn); units=[]; warnings=[]
     for table in ('parsed_tldraw_events','tldraw_events'):
-        try: rows=conn.execute(f"select * from {table}").fetchall()
+        try: raw_rows=conn.execute(f"select * from {table}").fetchall()
         except Exception: continue
-        for r in rows:
-            d=dict(r)
-            if not _path_matches_artifact(d.get('origin') or d.get('source_path') or d.get('path'), row):
-                continue
+        rows=[dict(r) for r in raw_rows]
+        scoped, warnings = _scope_rows(rows, artifact_path, ('origin','source_path'), 'TLDraw')
+        for d in scoped:
             txt=(d.get('text_snippet') or d.get('text') or '').strip()
             if txt:
-                loc=f"table:{table}:object_id:{d.get('object_id','')}:event_key:{d.get('event_key','')}"
+                source=d.get('origin') or d.get('source_path') or ''
+                loc=f"table:{table}:source:{source}:object_id:{d.get('object_id','')}:event_key:{d.get('event_key','')}"
                 units.append(_unit(run,row,len(units),'tldraw_text',txt,loc))
         break
-    conn.close(); return units
+    conn.close(); return units, warnings
 
-def extract_transcript_units(db_path: str, run: str, row: dict) -> list[dict]:
-    conn=connect(db_path); init_db(conn); units=[]
-    try: rows=conn.execute('select * from transcript_turn_events').fetchall()
-    except Exception: rows=[]
-    for r in rows:
-        d=dict(r)
-        if not _path_matches_artifact(d.get('source_path') or d.get('origin') or d.get('path'), row):
-            continue
+def extract_transcript_units(db_path: str, run: str, row: dict, artifact_path: str | None = None) -> tuple[list[dict], list[str]]:
+    conn=connect(db_path); init_db(conn); units=[]; warnings=[]
+    try: raw_rows=conn.execute('select * from transcript_turn_events').fetchall()
+    except Exception: raw_rows=[]
+    rows=[dict(r) for r in raw_rows]
+    scoped, warnings = _scope_rows(rows, artifact_path, ('source_path',), 'transcript')
+    for d in scoped:
         txt=(d.get('text') or d.get('utterance') or '').strip()
         if txt:
-            loc=f"source_path:{d.get('source_path','')}:turn_index:{d.get('turn_index','')}:start:{d.get('start_seconds','')}:end:{d.get('end_seconds','')}"
+            loc=f"source_path:{d.get('source_path','')}:turn_index:{d.get('turn_index','')}:start_seconds:{d.get('start_seconds','')}:end_seconds:{d.get('end_seconds','')}"
             units.append(_unit(run,row,len(units),'speech_turn',txt,loc))
-    conn.close(); return units
+    conn.close(); return units, warnings

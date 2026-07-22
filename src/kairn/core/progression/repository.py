@@ -22,15 +22,15 @@ def ensure_progression_tables(db_path: str, conn: sqlite3.Connection | None = No
     conn.commit()
     if own: conn.close()
 
-def replace_rows(db_path: str, table: str, analysis_run_id: str, rows: list[dict], pk: str | None = None):
+def replace_rows(db_path: str, table: str, analysis_run_id: str, rows: list[dict], pk: str | None = None, clear_existing: bool = True):
     conn=_conn(db_path)
-    if pk:
+    if clear_existing:
         conn.execute(f"delete from {table} where analysis_run_id=?", (analysis_run_id,))
+    if pk:
         for r in rows:
             cols=list(r.keys()); vals=[r[c] for c in cols]
             conn.execute(f"insert or replace into {table}({','.join(cols)}) values({','.join(['?']*len(cols))})", vals)
     else:
-        conn.execute(f"delete from {table} where analysis_run_id=?", (analysis_run_id,))
         if rows:
             cols=list(rows[0].keys())
             conn.executemany(f"insert into {table}({','.join(cols)}) values({','.join(['?']*len(cols))})", [[r.get(c) for c in cols] for r in rows])

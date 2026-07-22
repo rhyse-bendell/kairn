@@ -280,6 +280,8 @@ Kairn recursively recognizes Google Drive `dailyLog.csv` files, document changel
 
 Artifact Progression Analysis prepares a human-reviewable evidence layer for tracing idea development across problem-framing workshop artifacts. It uses the existing artifact catalog and project-local `kairn.db`, maps artifacts to profile-defined progression stages, and extracts evidence units with source locators so researchers can inspect provenance before interpretation.
 
+Progression evidence from transcripts and diagram logs is source-scoped when multiple transcript or diagram sources are present. The observatory processing pipeline batches all discovered sources during Generate Metrics Package so separate imported sources are accumulated in a single run rather than clearing one another.
+
 This first version generates only conservative deterministic candidates such as exact recurrence and high lexical overlap. It does not use an LLM, call a remote service, score team performance, infer cognition, or perform automated qualitative coding. Future semantic providers may propose annotations, but researcher review remains required.
 
 CLI examples:

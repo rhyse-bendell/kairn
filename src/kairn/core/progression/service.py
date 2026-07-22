@@ -32,9 +32,10 @@ def prepare_artifact_progression(project: dict, collection_id: str | None = None
         m=manifest_row(c, prof, include_reflections); m['analysis_run_id']=analysis_run_id
         if m['included']=='true':
             rel=m.get('rel_path') or ''; st=m.get('stage')
-            if c.get('artifact_role')=='tldraw_board_log': extracted=extract_tldraw_units(db_path, analysis_run_id, m); ew=[]
-            elif c.get('artifact_role')=='transcript': extracted=extract_transcript_units(db_path, analysis_run_id, m); ew=[]
-            else: extracted, ew=extract_file_units(str(_artifact_path(project, rel)), analysis_run_id, m)
+            artifact_path=str(_artifact_path(project, rel))
+            if c.get('artifact_role')=='tldraw_board_log': extracted, ew=extract_tldraw_units(db_path, analysis_run_id, m, artifact_path=artifact_path)
+            elif c.get('artifact_role')=='transcript': extracted, ew=extract_transcript_units(db_path, analysis_run_id, m, artifact_path=artifact_path)
+            else: extracted, ew=extract_file_units(artifact_path, analysis_run_id, m)
             warnings.extend([f"{rel}: {w}" for w in ew])
             if extracted:
                 m['content_available']='true'; units.extend(extracted)

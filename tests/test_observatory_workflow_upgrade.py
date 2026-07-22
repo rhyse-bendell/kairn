@@ -136,3 +136,44 @@ def test_registered_source_processing_batches_discovery_before_clearing(tmp_path
     with sqlite3.connect(project['db_path']) as c:
         paths = {Path(r[0]).parent.name for r in c.execute('select source_path from drive_activity_events')}
     assert paths == {'first', 'second'}
+
+
+def test_process_discovered_sources_can_append_without_clearing(tmp_path):
+    drive = tmp_path / 'drive'; drive.mkdir()
+    transcript = tmp_path / 'transcript'; transcript.mkdir()
+    (drive / 'dailyLog.csv').write_text('time,user,action,file_id\n2024-01-01,Alice,create,f1\n', encoding='utf-8')
+    (transcript / 'labeledTranscriptions.srt').write_text('1\n00:00:01,000 --> 00:00:02,000\nBob: hello\n', encoding='utf-8')
+    db = tmp_path / 'kairn.db'
+    _process_discovered_sources(discover_observatory_sources(drive), str(db))
+    _process_discovered_sources(discover_observatory_sources(transcript), str(db), clear_existing=False)
+    with sqlite3.connect(db) as c:
+        assert c.execute('select count(*) from drive_activity_events').fetchone()[0] == 1
+        assert c.execute('select count(*) from transcript_turn_events').fetchone()[0] == 1
+
+
+def test_process_registered_sources_preserves_multiple_streams(tmp_path, monkeypatch):
+    pytest.importorskip('PySide6')
+    from kairn.apps.desktop.tabs import project as project_tab
+    from kairn.core.projects import create_project, register_project_source
+
+    drive = tmp_path / 'drive_source'; drive.mkdir()
+    transcript = tmp_path / 'transcript_source'; transcript.mkdir()
+    (drive / 'dailyLog.csv').write_text('time,user,action,file_id\n2024-01-01,Alice,create,f1\n', encoding='utf-8')
+    (transcript / 'labeledTranscriptions.srt').write_text('1\n00:00:01,000 --> 00:00:02,000\nBob: hello there\n', encoding='utf-8')
+    project = create_project('Mixed Sources', kairn_home=tmp_path)
+    register_project_source(project, str(drive), copy_into_project=False)
+    register_project_source(project, str(transcript), copy_into_project=False)
+
+    monkeypatch.setattr(project_tab, 'prepare_workshop_source', lambda *a, **k: {'collection_id': 'c', 'run_id': 'r', 'warnings': []})
+    result = project_tab.process_registered_sources(project, project['db_path'])
+    assert result['sources_processed'] == 2
+    assert result['discovered_source_count'] >= 2
+    with sqlite3.connect(project['db_path']) as c:
+        assert c.execute('select count(*) from drive_activity_events').fetchone()[0] == 1
+        assert c.execute('select count(*) from transcript_turn_events').fetchone()[0] == 1
+        summary = c.execute('select registered_source_id, registered_processing_path from source_processing_summary').fetchall()
+        assert len(summary) >= 2
+        assert all(row[0] and row[1] for row in summary)
+    report = build_observatory_report(project, project['db_path'])
+    norm = next(t for t in report.tables if t.table_id == 'normalized_observatory_events')
+    assert {'drive', 'transcript'} <= {r['source_stream'] for r in norm.rows}
