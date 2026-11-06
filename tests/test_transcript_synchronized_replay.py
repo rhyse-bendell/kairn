@@ -154,6 +154,11 @@ def test_synchronized_helpers_reconstruct_observable_spaces():
     assert active.actor_label == "Alex"
     assert context[0].content_text == "Nature-based solutions"
 
+    gap_cursor = datetime(2026, 6, 11, 13, 0, 4, tzinfo=timezone.utc)
+    gap_active, gap_context = transcript_context(events, gap_cursor)
+    assert gap_active is None
+    assert gap_context
+
     board = board_state_from_events(events, cursor)
     assert len(board) == 1
     assert board[0].content_text == "Greenspace"
@@ -168,3 +173,47 @@ def test_synchronized_helpers_reconstruct_observable_spaces():
 
     after_delete = datetime(2026, 6, 11, 13, 0, 6, tzinfo=timezone.utc)
     assert board_state_from_events(events, after_delete) == []
+
+
+def test_reparse_clears_stale_unified_transcript_rows(tmp_path):
+    srt = tmp_path / "transcript.srt"
+    srt.write_text(_srt_text(), encoding="utf-8")
+    db = tmp_path / "kairn.db"
+    parse_srt_transcript(
+        srt,
+        db,
+        collection_id="c1",
+        anchor_utc="2026-06-11T13:00:00Z",
+    )
+
+    c = sqlite3.connect(db)
+    c.execute(
+        """create table unified_process_events(
+        id integer primary key autoincrement, collection_id text, source_table text,
+        source_event_id text, event_source text
+        )"""
+    )
+    utterance_id = c.execute("select id from transcript_utterances order by id limit 1").fetchone()[0]
+    c.execute(
+        "insert into unified_process_events(collection_id,source_table,source_event_id,event_source) values(?,?,?,?)",
+        ("c1", "transcript_utterances", str(utterance_id), "transcript"),
+    )
+    c.commit()
+    c.close()
+
+    parse_srt_transcript(
+        srt,
+        db,
+        collection_id="c1",
+        anchor_utc="2026-06-11T14:00:00Z",
+    )
+    c = sqlite3.connect(db)
+    stale = c.execute(
+        "select count(*) from unified_process_events where source_table='transcript_utterances'"
+    ).fetchone()[0]
+    first_ts = c.execute(
+        "select timestamp_utc from transcript_utterances order by id limit 1"
+    ).fetchone()[0]
+    c.close()
+    assert stale == 0
+    assert first_ts == "2026-06-11T14:00:01Z"
