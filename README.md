@@ -86,7 +86,7 @@ kairn catalog build --db kairn.db --collection-id <collection-id> --profile prob
 
 The catalog command writes `artifact_catalog.csv`, `artifact_catalog.json`, `artifact_catalog_summary.json`, and `artifact_catalog_summary.txt` to the selected output directory. The desktop Sources tab can also build/refresh the catalog for the active collection and shows source type, artifact role, team/participant hints, confidence, and warnings.
 
-This MVP slice is intentionally limited to cataloging and detection. It does not implement TLDraw audit-log parsing, board reconstruction, metrics, LLM scoring, outcome scoring, Drive event parsing, or transcript/MITM coding.
+This catalog/profile slice only labels sources and roles; downstream Kairn modules perform TLDraw/Drive/document parsing, replay, board reconstruction, and transcript ingestion. Kairn still does not perform automatic qualitative transcript/MITM coding, LLM scoring, or outcome scoring.
 
 ## Working with Workshop Data
 
@@ -106,6 +106,27 @@ kairn export workshop --db kairn.db --out-dir outputs/workshop
 ```
 
 Implemented workshop data products include `raw_tldraw_events`, `parsed_tldraw_events`, `drive_activity_events`, `document_edit_events`, `unified_process_events`, and `board_snapshots`. The artifact catalog profile recognizes TLDraw SQLite logs, Drive daily logs, changelogs, Google document HTML exports, team/participant folder hints, task modules, and bracketed human-readable file IDs.
+
+## Synchronized Workspace Replay
+
+Replay now includes an optional **Synchronized Workspaces** view for reconstructing what is observable across collaboration spaces at one point in time. It shares one session clock across:
+
+- **Speech**: parsed SRT utterances with speaker labels when explicitly encoded in the transcript.
+- **Diagram**: the best reconstructable TLDraw board state from create/update/delete events and available geometry.
+- **Documents**: observed document/Drive change traces up to the cursor. Kairn labels these as change/activity traces rather than pretending that changelogs provide complete historical document snapshots.
+- **Activity**: events from all loaded sources within ±30 seconds of the current cursor.
+
+SRT transcripts use relative recording timestamps. To synchronize speech with absolute TLDraw/document timestamps, parse the transcript with the recording/session start time:
+
+```bash
+kairn transcripts inspect "AnnotatedTranscripts.srt"
+kairn transcripts parse "AnnotatedTranscripts.srt" --db kairn.db --collection-id COLLECTION_ID --team-id "Team 2" --anchor-utc "2026-06-11T13:00:00Z"
+kairn process build-unified --db kairn.db --collection-id COLLECTION_ID
+```
+
+The desktop Replay tab can also select an SRT file, enter a transcript anchor UTC value, and choose **Parse Selected SRT**. After loading events, open **Synchronized Workspaces** to play or scrub the shared clock.
+
+The synchronized view is an evidence inspection interface, not a claim that every collaboration space is fully observable. A stable pane with no event means only that no change is present in the available trace. Transcript speaker identity is used only when explicitly encoded; document history may be partial; and TLDraw reconstruction is limited to what the audit log preserves.
 
 ## Replay Workbench
 
