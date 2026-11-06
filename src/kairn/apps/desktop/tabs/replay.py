@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from kairn.core.replay import load_replay_events, get_replay_summary
 from kairn.core.replay.summaries import event_density
 from kairn.core.sources import detect_compatible_source
+from kairn.core.transcripts import parse_srt_transcript
 from ..widgets import (
     set_table_rows,
     append_log,
@@ -39,6 +40,7 @@ class ReplayTab(QWidget):
         self.state = state
         self.log = log
         self.events = []
+        self.selected_source_path = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._timer_tick)
 
@@ -61,6 +63,7 @@ class ReplayTab(QWidget):
         for txt, fn in [
             ("Select File or Folder", self.select_source),
             ("Load Events", self.load),
+            ("Parse Selected SRT", self.parse_selected_srt),
             ("Play", self.play),
             ("Pause", self.pause),
             ("Step Back", self.step_back),
@@ -69,12 +72,15 @@ class ReplayTab(QWidget):
             b = primary_action_button(txt) if txt == "Load Events" else secondary_action_button(txt)
             b.clicked.connect(fn)
             top.addWidget(b)
+        self.anchor = QLineEdit()
+        self.anchor.setPlaceholderText("Transcript anchor UTC, e.g. 2026-06-11T13:00:00Z")
         self.speed = QComboBox()
         self.speed.addItems(["slow", "normal", "fast"])
         top.addWidget(QLabel("Source"))
         top.addWidget(self.source)
         top.addWidget(self.team)
         top.addWidget(self.part)
+        top.addWidget(self.anchor)
         top.addWidget(self.speed)
         l.addLayout(top)
 
@@ -168,9 +174,32 @@ class ReplayTab(QWidget):
             )
         )
         if p:
+            self.selected_source_path = p
             res = detect_compatible_source(p)
             self.detect.setText(json.dumps(res, indent=2))
             append_log(self.log, "Source detection: " + json.dumps(res))
+
+    def parse_selected_srt(self):
+        p = self.selected_source_path
+        if not p or not str(p).lower().endswith(".srt"):
+            append_log(self.log, "Select an .srt transcript first.")
+            return
+        try:
+            result = parse_srt_transcript(
+                p,
+                self.state.db_path,
+                collection_id=self.state.active_collection_id,
+                run_id=self.state.last_run_id,
+                team_id=self.team.text() or None,
+                anchor_utc=self.anchor.text().strip() or None,
+            )
+        except Exception as exc:
+            append_log(self.log, f"Transcript parse failed: {exc}")
+            self.detect.setText(f"Transcript parse failed:\n{exc}")
+            return
+        self.detect.setText(json.dumps(result, indent=2))
+        append_log(self.log, f"Parsed {result.get('inserted', 0)} transcript utterances")
+        self.load()
 
     def load(self):
         src = None if self.source.currentText() in ("All", "unified") else [self.source.currentText()]
