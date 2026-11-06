@@ -9,7 +9,6 @@ class ReplayEvent:
     source_table: str | None = None
     source_event_id: str | None = None
     timestamp_utc: str | None = None
-    timestamp_end_utc: str | None = None
     relative_time_s: float = 0.0
     sequence_index: int = 0
     team_id: str | None = None
@@ -29,6 +28,7 @@ class ReplayEvent:
     width: float | None = None
     height: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    timestamp_end_utc: str | None = None
 
     def to_dict(self):
         return asdict(self)
