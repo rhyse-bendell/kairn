@@ -43,17 +43,14 @@ def active_transcript_event(
 ) -> ReplayEvent | None:
     transcript = [e for e in events if e.source == "transcript" and parse_timestamp(e.timestamp_utc)]
     transcript.sort(key=lambda e: parse_timestamp(e.timestamp_utc))
-    prior = None
     for event in transcript:
         start = parse_timestamp(event.timestamp_utc)
         end = parse_timestamp(event.timestamp_end_utc) or start
         if start and end and start <= cursor <= end:
             return event
-        if start and start <= cursor:
-            prior = event
-        elif start and start > cursor:
+        if start and start > cursor:
             break
-    return prior
+    return None
 
 
 def transcript_context(
@@ -65,9 +62,18 @@ def transcript_context(
     transcript = [e for e in events if e.source == "transcript" and parse_timestamp(e.timestamp_utc)]
     transcript.sort(key=lambda e: parse_timestamp(e.timestamp_utc))
     active = active_transcript_event(transcript, cursor)
-    if active is None:
-        return None, transcript[: max(0, after)]
-    idx = transcript.index(active)
+    if not transcript:
+        return None, []
+    if active is not None:
+        idx = transcript.index(active)
+    else:
+        idx = 0
+        for i, event in enumerate(transcript):
+            start = parse_timestamp(event.timestamp_utc)
+            if start and start <= cursor:
+                idx = i
+            elif start and start > cursor:
+                break
     lo = max(0, idx - max(0, before))
     hi = min(len(transcript), idx + max(0, after) + 1)
     return active, transcript[lo:hi]
