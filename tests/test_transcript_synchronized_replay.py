@@ -5,6 +5,7 @@ from kairn.core.transcripts import parse_srt_transcript, inspect_srt_transcript
 from kairn.core.sources import detect_compatible_source
 from kairn.core.replay import load_replay_events
 from kairn.core.replay.models import ReplayEvent
+from kairn.core.process.unified_events import build_unified_process_events
 from kairn.core.replay.synchronized import (
     transcript_context,
     board_state_from_events,
@@ -217,3 +218,31 @@ def test_reparse_clears_stale_unified_transcript_rows(tmp_path):
     c.close()
     assert stale == 0
     assert first_ts == "2026-06-11T14:00:01Z"
+
+
+def test_unified_process_events_include_transcript_end_time(tmp_path):
+    srt = tmp_path / "transcript.srt"
+    srt.write_text(_srt_text(), encoding="utf-8")
+    db = tmp_path / "kairn.db"
+    parse_srt_transcript(
+        srt,
+        db,
+        collection_id="c1",
+        run_id="r1",
+        team_id="Team 2",
+        anchor_utc="2026-06-11T13:00:00Z",
+    )
+    result = build_unified_process_events(db, collection_id="c1", run_id="r1")
+    assert result["count"] == 3
+
+    c = sqlite3.connect(db)
+    rows = c.execute(
+        "select event_source,timestamp_utc,timestamp_end_utc,participant_name,content_text "
+        "from unified_process_events order by timestamp_utc"
+    ).fetchall()
+    c.close()
+    assert rows[0][0] == "transcript"
+    assert rows[0][1] == "2026-06-11T13:00:01Z"
+    assert rows[0][2] == "2026-06-11T13:00:03Z"
+    assert rows[0][3] == "Alex"
+    assert "nature-based solutions" in rows[0][4]
