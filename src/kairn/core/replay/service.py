@@ -188,7 +188,12 @@ def load_replay_events(
 
     # Transcript utterances are intentionally appended even when unified events exist because
     # older projects will not have transcript rows in unified_process_events.
-    if _exists(c, "transcript_utterances") and (not srcset or "transcript" in srcset or "unified" in srcset):
+    unified_has_transcript = any(e.source == "transcript" for e in events) if used_unified else False
+    if (
+        _exists(c, "transcript_utterances")
+        and not unified_has_transcript
+        and (not srcset or "transcript" in srcset or "unified" in srcset)
+    ):
         events += [
             _ev(r, "transcript", "transcript_utterances", len(events))
             for r in _select(c, "transcript_utterances", collection_id, run_id, team_id, participant_id)
