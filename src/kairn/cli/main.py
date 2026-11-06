@@ -25,6 +25,7 @@ from kairn.core.export.workshop import export_workshop_data
 from kairn.core.observatory import build_observatory_report, export_observatory_report, report_summary, process_registered_sources
 from kairn.core.progression import prepare_artifact_progression, generate_deterministic_progression_candidates, export_artifact_progression_package
 from kairn.core.validation import run_evidence_readiness_validation
+from kairn.core.transcripts import parse_srt_transcript, inspect_srt_transcript
 
 def main():
     p=argparse.ArgumentParser('kairn'); sp=p.add_subparsers(dest='cmd')
@@ -42,6 +43,9 @@ def main():
     td=sp.add_parser('tldraw'); tdsp=td.add_subparsers(dest='tldraw_type'); tdi=tdsp.add_parser('inspect'); tdi.add_argument('db_path'); tdp=tdsp.add_parser('parse'); tdp.add_argument('db_path'); tdp.add_argument('--db',default='kairn.db'); tdp.add_argument('--collection-id'); tdp.add_argument('--run-id')
     dr=sp.add_parser('drive'); drsp=dr.add_subparsers(dest='drive_type'); drp=drsp.add_parser('parse'); drp.add_argument('csv_path'); drp.add_argument('--db',default='kairn.db'); drp.add_argument('--collection-id'); drp.add_argument('--run-id')
     docs=sp.add_parser('documents'); dosp=docs.add_subparsers(dest='documents_type'); dop=dosp.add_parser('parse-changelogs'); dop.add_argument('root_path'); dop.add_argument('--db',default='kairn.db'); dop.add_argument('--collection-id'); dop.add_argument('--run-id')
+    tr=sp.add_parser('transcripts'); trsp=tr.add_subparsers(dest='transcripts_type')
+    tri=trsp.add_parser('inspect'); tri.add_argument('srt_path')
+    trp=trsp.add_parser('parse'); trp.add_argument('srt_path'); trp.add_argument('--db',default='kairn.db'); trp.add_argument('--collection-id'); trp.add_argument('--run-id'); trp.add_argument('--team-id'); trp.add_argument('--anchor-utc')
     proj=sp.add_parser('projects', help='Create, list, load, and manage local Kairn projects'); pjsp=proj.add_subparsers(dest='projects_type'); pc=pjsp.add_parser('create'); pc.add_argument('name'); pc.add_argument('--description',default=''); pc.add_argument('--home'); pc.add_argument('--profile',default='problem_framing_workshop'); pl=pjsp.add_parser('list'); pl.add_argument('--home'); psw=pjsp.add_parser('show'); psw.add_argument('project'); po=pjsp.add_parser('open'); po.add_argument('project'); prs=pjsp.add_parser('register-source'); prs.add_argument('project'); prs.add_argument('source_path'); prs.add_argument('--copy',action='store_true'); prs.add_argument('--source-type'); pnr=pjsp.add_parser('new-run'); pnr.add_argument('project'); pnr.add_argument('--label');
     srcp=sp.add_parser('sources'); srcsp=srcp.add_subparsers(dest='sources_type'); si=srcsp.add_parser('inspect'); si.add_argument('path')
     rep=sp.add_parser('replay'); repsp=rep.add_subparsers(dest='replay_type'); rs=repsp.add_parser('summary'); rs.add_argument('--db',default='kairn.db'); rs.add_argument('--collection-id'); rs.add_argument('--run-id'); re=repsp.add_parser('export'); re.add_argument('--db',default='kairn.db'); re.add_argument('--collection-id'); re.add_argument('--run-id'); re.add_argument('--out-dir',required=True)
@@ -69,6 +73,8 @@ def main():
     elif a.cmd=='tldraw' and a.tldraw_type=='parse': print(json.dumps(parse_tldraw_audit_logs(a.db_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='drive' and a.drive_type=='parse': print(json.dumps(parse_drive_activity_csv(a.csv_path,a.db,a.collection_id,a.run_id), indent=2))
     elif a.cmd=='documents' and a.documents_type=='parse-changelogs': print(json.dumps(parse_all_changelogs_under_root(a.root_path,a.db,a.collection_id,a.run_id), indent=2))
+    elif a.cmd=='transcripts' and a.transcripts_type=='inspect': print(json.dumps(inspect_srt_transcript(a.srt_path), indent=2))
+    elif a.cmd=='transcripts' and a.transcripts_type=='parse': print(json.dumps(parse_srt_transcript(a.srt_path,a.db,a.collection_id,a.run_id,a.team_id,a.anchor_utc), indent=2))
 
     elif a.cmd=='projects' and a.projects_type=='create': print(json.dumps(create_project(a.name,a.description,kairn_home=a.home,profile=a.profile), indent=2))
     elif a.cmd=='projects' and a.projects_type=='list': [print(f"{p['name']}\t{p['project_root']}\t{p.get('updated_at','')}") for p in list_projects(a.home)]
