@@ -131,6 +131,28 @@ def parse_srt_transcript(
 
     conn = sqlite3.connect(str(db_path))
     ensure_tables(conn)
+
+    # Remove any unified replay rows derived from an older parse of this source before
+    # replacing utterance rows. This prevents stale/duplicate transcript events when
+    # an anchor or team assignment is corrected and the transcript is reparsed.
+    unified_exists = conn.execute(
+        "select 1 from sqlite_master where type='table' and name='unified_process_events'"
+    ).fetchone()
+    if unified_exists:
+        old_ids = [
+            str(r[0])
+            for r in conn.execute(
+                "select id from transcript_utterances where source_path=? and ifnull(collection_id,'')=ifnull(?,'')",
+                (str(p), collection_id),
+            ).fetchall()
+        ]
+        if old_ids:
+            placeholders = ",".join("?" for _ in old_ids)
+            conn.execute(
+                f"delete from unified_process_events where source_table='transcript_utterances' "
+                f"and source_event_id in ({placeholders})",
+                old_ids,
+            )
     conn.execute(
         "delete from transcript_utterances where source_path=? and ifnull(collection_id,'')=ifnull(?,'')",
         (str(p), collection_id),
