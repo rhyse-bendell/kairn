@@ -65,6 +65,7 @@ def detect_compatible_source(path:str)->dict:
  if s in ('.db','.sqlite','.sqlite3'): return _sqlite(p)
  if s=='.csv': return _csv(p)
  if s=='.txt': return _txt(p)
+ if s=='.srt': return _finish(_base(p,'transcript','clean_transcript'),['inspect_transcript','parse_transcript','load_replay'],'parse_transcript',.96,'clean_transcript') | {'detected_handlers':[handler('transcript_srt',.96)]}
  if s=='.html' and p.name.lower().startswith('email_export'): return _finish(_base(p,'html','google_doc_html_export'),['catalog','extract_text_basic','link_to_changelog'],'catalog',.86)
  if s=='.docx': return _finish(_base(p,'document','static_workshop_material'),['catalog','register_artifact','extract_text_if_dependency_available'],'catalog',.75)
  if s=='.pptx': return _finish(_base(p,'slides','static_workshop_material'),['catalog','register_artifact','extract_text_if_dependency_available'],'catalog',.75)
